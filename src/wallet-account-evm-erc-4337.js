@@ -151,20 +151,41 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
   }
 
   /**
+   * Quotes the costs of a send transaction operation.
+   *
+   * @param {EvmTransaction | EvmTransaction[]} tx - The transaction, or an array of multiple transactions to send in batch.
+   * @param {Pick<EvmErc4337WalletConfig, 'paymasterToken' | 'isSponsored' | 'sponsorshipPolicyId'>} [config] - If set, overrides the options defined in the wallet account configuration.
+   * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+   */
+  async quoteSendTransaction (tx, config) {
+    const { isSponsored } = config ?? this._config
+
+    if (isSponsored) {
+      return { fee: 0n }
+    }
+
+    return await super.quoteSendTransaction(tx, config)
+  }
+
+  /**
    * Sends a transaction.
    *
    * @param {EvmTransaction | EvmTransaction[]} tx -  The transaction, or an array of multiple transactions to send in batch.
-   * @param {Pick<EvmErc4337WalletConfig, 'paymasterToken'>} [config] - If set, overrides the 'paymasterToken' option defined in the wallet account configuration.
+   * @param {Pick<EvmErc4337WalletConfig, 'paymasterToken' | 'isSponsored' | 'sponsorshipPolicyId'>} [config] - If set, overrides the 'paymasterToken' option defined in the wallet account configuration.
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
   async sendTransaction (tx, config) {
-    const { paymasterToken } = config ?? this._config
+    const { paymasterToken, isSponsored, sponsorshipPolicyId } = config ?? this._config
 
     const { fee } = await this.quoteSendTransaction(tx, config)
 
+    const amountToApprove = isSponsored ? 0n : BigInt(fee * FEE_TOLERANCE_COEFFICIENT / 100n)
+
     const hash = await this._sendUserOperation([tx].flat(), {
-      paymasterTokenAddress: paymasterToken.address,
-      amountToApprove: BigInt(fee * FEE_TOLERANCE_COEFFICIENT / 100n)
+      isSponsored,
+      paymasterTokenAddress: isSponsored ? undefined : paymasterToken.address,
+      sponsorshipPolicyId: isSponsored ? sponsorshipPolicyId : undefined,
+      amountToApprove
     })
 
     return { hash, fee }
@@ -174,23 +195,41 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * Transfers a token to another address.
    *
    * @param {TransferOptions} options - The transfer's options.
-   * @param {Pick<EvmErc4337WalletConfig, 'paymasterToken' | 'transferMaxFee'>} [config] - If set, overrides the 'paymasterToken' and 'transferMaxFee' options defined in the wallet account configuration.
+   * @param {Pick<EvmErc4337WalletConfig, 'paymasterToken' | 'transferMaxFee' | 'isSponsored' | 'sponsorshipPolicyId'>} [config] - If set, overrides the 'paymasterToken' and 'transferMaxFee' options defined in the wallet account configuration.
    * @returns {Promise<TransferResult>} The transfer's result.
    */
   async transfer (options, config) {
-    const { paymasterToken, transferMaxFee } = config ?? this._config
+    const { paymasterToken, transferMaxFee, isSponsored, sponsorshipPolicyId } = config ?? this._config
 
-    const tx = await WalletAccountEvm._getTransferTransaction(options)
+    let tx = await WalletAccountEvm._getTransferTransaction(options)
 
     const { fee } = await this.quoteSendTransaction(tx, config)
 
-    if (transferMaxFee !== undefined && fee >= transferMaxFee) {
+    if (!isSponsored && transferMaxFee !== undefined && fee >= transferMaxFee) {
       throw new Error('Exceeded maximum fee cost for transfer operation.')
     }
 
+    const amountToApprove = isSponsored ? 0n : BigInt(fee * FEE_TOLERANCE_COEFFICIENT / 100n)
+
+    if (!isSponsored && paymasterToken && options.token.toLowerCase() === paymasterToken.address.toLowerCase()) {
+      const balance = await this.getTokenBalance(paymasterToken.address)
+
+      if (BigInt(options.amount) === balance) {
+        if (balance < amountToApprove) {
+          throw new Error('Not enough funds to cover gas fees.')
+        }
+
+        const newAmount = balance - amountToApprove
+
+        tx = await WalletAccountEvm._getTransferTransaction({ ...options, amount: newAmount })
+      }
+    }
+
     const hash = await this._sendUserOperation([tx], {
-      paymasterTokenAddress: paymasterToken.address,
-      amountToApprove: BigInt(fee * FEE_TOLERANCE_COEFFICIENT / 100n)
+      isSponsored,
+      paymasterTokenAddress: isSponsored ? undefined : paymasterToken.address,
+      sponsorshipPolicyId: isSponsored ? sponsorshipPolicyId : undefined,
+      amountToApprove
     })
 
     return { hash, fee }
