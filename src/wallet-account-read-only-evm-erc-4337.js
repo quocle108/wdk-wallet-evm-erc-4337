@@ -18,7 +18,7 @@ import { WalletAccountReadOnly } from '@tetherto/wdk-wallet'
 
 import { WalletAccountReadOnlyEvm } from '@tetherto/wdk-wallet-evm'
 
-import { Safe4337Pack, GenericFeeEstimator } from '@wdk-safe-global/relay-kit'
+import { Safe4337Pack, GenericFeeEstimator, PimlicoFeeEstimator } from '@wdk-safe-global/relay-kit'
 
 /** @typedef {import('ethers').Eip1193Provider} Eip1193Provider */
 
@@ -282,12 +282,19 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
   /** @private */
   async _getFeeEstimator () {
     if (!this._feeEstimator) {
-      const chainId = await this._getChainId()
+      const { bundlerUrl, paymasterUrl } = this._config
+      const isPimlico = (bundlerUrl && bundlerUrl.includes('pimlico')) || (paymasterUrl && paymasterUrl.includes('pimlico'))
 
-      this._feeEstimator = new GenericFeeEstimator(
-        this._config.provider,
-        `0x${chainId.toString(16)}`
-      )
+      if (isPimlico) {
+        this._feeEstimator = new PimlicoFeeEstimator()
+      } else {
+        const chainId = await this._getChainId()
+
+        this._feeEstimator = new GenericFeeEstimator(
+          this._config.provider,
+          `0x${chainId.toString(16)}`
+        )
+      }
     }
 
     return this._feeEstimator
