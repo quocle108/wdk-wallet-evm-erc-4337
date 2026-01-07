@@ -105,22 +105,12 @@ async function deployTestTokens () {
   }
 }
 
-async function fundAccountsWithEth () {
-  let nonce = await ethersProvider.getTransactionCount(fundedWallet.address)
-  for (const account of [ACCOUNT0, ACCOUNT1]) {
-    await fundedWallet.sendTransaction({
-      to: account.address,
-      value: ethers.parseEther('10'),
-      nonce: nonce++
-    })
-  }
-}
-
 async function fundAccountsWithTokens (testToken, accounts) {
   let nonce = await ethersProvider.getTransactionCount(fundedWallet.address)
   for (const account of accounts) {
     await transfer(testToken, account, 100, fundedWallet, nonce++)
   }
+  return nonce
 }
 
 describe('@wdk/wallet-evm-erc-4337', () => {
@@ -132,8 +122,6 @@ describe('@wdk/wallet-evm-erc-4337', () => {
   let paymasterAddress
 
   beforeAll(async () => {
-    await fundAccountsWithEth()
-
     const tokens = await deployTestTokens()
     testToken = tokens.testToken
     mockPaymasterToken = tokens.mockPaymasterToken
@@ -165,11 +153,12 @@ describe('@wdk/wallet-evm-erc-4337', () => {
     const safeAddress0 = await account0.getAddress()
     const safeAddress1 = await account1.getAddress()
 
-    const accounts = [ACCOUNT0.address, ACCOUNT1.address, safeAddress0, safeAddress1]
-
-    await fundAccountsWithTokens(testToken, accounts)
+    const accounts = [safeAddress0, safeAddress1]
 
     let nonce = await ethersProvider.getTransactionCount(fundedWallet.address)
+
+    nonce = await fundAccountsWithTokens(testToken, accounts, nonce)
+
     await fundedWallet.sendTransaction({
       to: safeAddress0,
       value: ethers.parseEther('1'),
