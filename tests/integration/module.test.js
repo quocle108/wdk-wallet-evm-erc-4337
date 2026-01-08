@@ -206,6 +206,7 @@ describe('@wdk/wallet-evm-erc-4337', () => {
     const transaction = await waitForTx(hash, account0)
 
     expect(transaction.status).toBe(1)
+    expect(transaction.to).toBe(ENTRY_POINT_ADDRESS)
 
     expect(estimatedFee).toBe(fee)
   }, TIMEOUT)
