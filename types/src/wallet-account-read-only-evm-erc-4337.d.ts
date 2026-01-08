@@ -79,9 +79,17 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      */
     getTransactionReceipt(hash: string): Promise<EvmTransactionReceipt | null>;
     /**
+     * Returns a user operation's receipt.
+     *
+     * @param {string} hash - The user operation hash.
+     * @returns {Promise<UserOperationReceipt | null>} – The receipt, or null if the user operation has not been included in a block yet.
+     */
+    getUserOperationReceipt(hash: string): Promise<UserOperationReceipt | null>;
+    /**
      * Returns the current allowance for the given token and spender.
-     * @param {string} token - The token’s address.
-     * @param {string} spender - The spender’s address.
+     * 
+     * @param {string} token - The token's address.
+     * @param {string} spender - The spender's address.
      * @returns {Promise<bigint>} - The allowance.
      */
     getAllowance(token: string, spender: string): Promise<bigint>;
@@ -107,6 +115,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     private _getUserOperationGasCost;
 }
 export type Eip1193Provider = import("ethers").Eip1193Provider;
+export type UserOperationReceipt = import("@wdk-safe-global/relay-kit").UserOperationReceipt;
 export type EvmTransaction = import("@tetherto/wdk-wallet-evm").EvmTransaction;
 export type TransactionResult = import("@tetherto/wdk-wallet-evm").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet-evm").TransferOptions;

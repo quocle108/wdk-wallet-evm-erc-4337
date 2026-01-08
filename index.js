@@ -14,6 +14,8 @@
 
 'use strict'
 
+/** @typedef {import('@wdk-safe-global/relay-kit').UserOperationReceipt} UserOperationReceipt */
+
 /** @typedef {import('@tetherto/wdk-wallet-evm').FeeRates} FeeRates */
 
 /** @typedef {import('@tetherto/wdk-wallet-evm').KeyPair} KeyPair */
