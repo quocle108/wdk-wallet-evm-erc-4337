@@ -172,11 +172,9 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
    * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
    */
   async quoteTransfer (options, config) {
-    const { isSponsored, sponsorshipPolicyId } = config ?? this._config
-
     const tx = await WalletAccountReadOnlyEvm._getTransferTransaction(options)
 
-    const result = await this.quoteSendTransaction(tx, { ...config, isSponsored, sponsorshipPolicyId })
+    const result = await this.quoteSendTransaction(tx, config)
 
     return result
   }
