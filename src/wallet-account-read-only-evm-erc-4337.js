@@ -194,7 +194,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     const usePaymaster = !useNativeCoins
 
     const fee = await this._getUserOperationGasCost([tx].flat(), {
-      paymasterTokenAddress,
+      paymasterTokenAddress: useNativeCoins ? undefined : paymasterTokenAddress,
       amountToApprove: useNativeCoins ? 0n : BigInt(Number.MAX_SAFE_INTEGER)
     }, usePaymaster)
 
