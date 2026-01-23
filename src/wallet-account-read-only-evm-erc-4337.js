@@ -359,11 +359,11 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
         maxFeePerGas
       } = safeOperation.userOperation
 
-      const gasCost = Number((callGasLimit + verificationGasLimit + preVerificationGas + paymasterVerificationGasLimit + paymasterPostOpGasLimit) * maxFeePerGas)
+      const gasCost = (callGasLimit + verificationGasLimit + preVerificationGas + paymasterVerificationGasLimit + paymasterPostOpGasLimit) * maxFeePerGas
 
       const exchangeRate = await safe4337Pack.getTokenExchangeRate(options.paymasterTokenAddress)
 
-      const gasCostInPaymasterToken = Math.ceil(gasCost * exchangeRate / 10 ** 18)
+      const gasCostInPaymasterToken = (gasCost * exchangeRate + (10n ** 18n - 1n)) / (10n ** 18n)
 
       return gasCostInPaymasterToken
     } catch (error) {
