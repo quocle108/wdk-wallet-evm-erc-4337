@@ -150,7 +150,13 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
   async sendTransaction (tx, config) {
-    const { isSponsored, useNativeCoins, paymasterTokenAddress, sponsorshipPolicyId } = { ...this._config, ...config }
+    const mergedConfig = { ...this._config, ...config }
+
+    if (config) {
+      this._validateConfig(mergedConfig)
+    }
+
+    const { isSponsored, useNativeCoins, paymasterToken, sponsorshipPolicyId } = mergedConfig
 
     const { fee } = await this.quoteSendTransaction(tx, config)
 
@@ -158,7 +164,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const hash = await this._sendUserOperation([tx].flat(), {
       isSponsored,
-      paymasterTokenAddress: (isSponsored || useNativeCoins) ? undefined : paymasterTokenAddress,
+      paymasterTokenAddress: (isSponsored || useNativeCoins) ? undefined : paymasterToken?.address,
       sponsorshipPolicyId: isSponsored ? sponsorshipPolicyId : undefined,
       amountToApprove
     })
@@ -174,7 +180,13 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * @returns {Promise<TransferResult>} The transfer's result.
    */
   async transfer (options, config) {
-    const { isSponsored, useNativeCoins, paymasterTokenAddress, transferMaxFee, sponsorshipPolicyId } = { ...this._config, ...config }
+    const mergedConfig = { ...this._config, ...config }
+
+    if (config) {
+      this._validateConfig(mergedConfig)
+    }
+
+    const { isSponsored, useNativeCoins, paymasterToken, transferMaxFee, sponsorshipPolicyId } = mergedConfig
 
     const tx = await WalletAccountEvm._getTransferTransaction(options)
 
@@ -188,7 +200,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const hash = await this._sendUserOperation([tx], {
       isSponsored,
-      paymasterTokenAddress: (isSponsored || useNativeCoins) ? undefined : paymasterTokenAddress,
+      paymasterTokenAddress: (isSponsored || useNativeCoins) ? undefined : paymasterToken?.address,
       sponsorshipPolicyId: isSponsored ? sponsorshipPolicyId : undefined,
       amountToApprove
     })
@@ -255,7 +267,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
         paymasterOptions: {
           paymasterUrl: this._config.paymasterUrl,
           paymasterAddress: this._config.paymasterAddress,
-          paymasterTokenAddress: this._config.paymasterTokenAddress,
+          paymasterTokenAddress: this._config.paymasterToken?.address,
           skipApproveTransaction: true
         },
         customContracts: {

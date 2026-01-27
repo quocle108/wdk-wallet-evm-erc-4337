@@ -67,18 +67,18 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * Quotes the costs of a send transaction operation.
      *
      * @param {EvmTransaction | EvmTransaction[]} tx - The transaction, or an array of multiple transactions to send in batch.
-     * @param {Pick<EvmErc4337WalletPaymasterTokenConfig, 'isSponsored' | 'paymasterToken'> | Pick<EvmErc4337WalletSponsorshipPolicyConfig, 'isSponsored'>} [config] - If set, overrides the 'paymasterToken' and 'isSponsored' options defined in the wallet account configuration.
+     * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
      * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
      */
-    quoteSendTransaction(tx: EvmTransaction | EvmTransaction[], config?: Pick<EvmErc4337WalletPaymasterTokenConfig, "isSponsored" | "paymasterToken"> | Pick<EvmErc4337WalletSponsorshipPolicyConfig, "isSponsored">): Promise<Omit<TransactionResult, "hash">>;
+    quoteSendTransaction(tx: EvmTransaction | EvmTransaction[], config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<Omit<TransactionResult, "hash">>;
     /**
      * Quotes the costs of a transfer operation.
      *
      * @param {TransferOptions} options - The transfer's options.
-     * @param {Pick<EvmErc4337WalletPaymasterTokenConfig, 'isSponsored' | 'paymasterToken'> | Pick<EvmErc4337WalletSponsorshipPolicyConfig, 'isSponsored'>} [config] - If set, overrides the 'paymasterToken' and 'isSponsored' options defined in the wallet account configuration.
+     * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
      * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
      */
-    quoteTransfer(options: TransferOptions, config?: Pick<EvmErc4337WalletPaymasterTokenConfig, "isSponsored" | "paymasterToken"> | Pick<EvmErc4337WalletSponsorshipPolicyConfig, "isSponsored">): Promise<Omit<TransferResult, "hash">>;
+    quoteTransfer(options: TransferOptions, config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<Omit<TransferResult, "hash">>;
     /**
      * Returns a transaction's receipt.
      *
@@ -153,14 +153,6 @@ export type EvmErc4337WalletCommonConfig = {
      */
     bundlerUrl: string;
     /**
-     * - The url of the paymaster service.
-     */
-    paymasterUrl: string;
-    /**
-     * - The address of the paymaster smart contract.
-     */
-    paymasterAddress: string;
-    /**
      * - The address of the entry point smart contract.
      */
     entryPointAddress: string;
@@ -171,9 +163,21 @@ export type EvmErc4337WalletCommonConfig = {
 };
 export type EvmErc4337WalletPaymasterTokenConfig = {
     /**
-     * - Whether the transaction is sponsored.
+     * - Whether the paymaster is sponsoring the account.
      */
     isSponsored?: false;
+    /**
+     * - Whether to use native coins instead of a paymaster to pay for gas fees.
+     */
+    useNativeCoins?: false;
+    /**
+     * - The url of the paymaster service.
+     */
+    paymasterUrl: string;
+    /**
+     * - The address of the paymaster smart contract.
+     */
+    paymasterAddress: string;
     /**
      * - The paymaster token configuration.
      */
@@ -190,13 +194,35 @@ export type EvmErc4337WalletPaymasterTokenConfig = {
 };
 export type EvmErc4337WalletSponsorshipPolicyConfig = {
     /**
-     * - Whether the transaction is sponsored.
+     * - Whether the paymaster is sponsoring the account.
      */
     isSponsored: true;
     /**
+     * - Whether to use native coins instead of a paymaster to pay for gas fees.
+     */
+    useNativeCoins?: false;
+    /**
+     * - The url of the paymaster service.
+     */
+    paymasterUrl: string;
+    /**
      * - The sponsorship policy id.
      */
-    sponsorshipPolicyId: string;
+    sponsorshipPolicyId?: string;
 };
-export type EvmErc4337WalletConfig = EvmErc4337WalletCommonConfig & (EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig);
+export type EvmErc4337WalletNativeCoinsConfig = {
+    /**
+     * - Whether the paymaster is sponsoring the account.
+     */
+    isSponsored?: false;
+    /**
+     * - Whether to use native coins instead of a paymaster to pay for gas fees.
+     */
+    useNativeCoins: true;
+    /**
+     * - The maximum fee amount for transfer operations.
+     */
+    transferMaxFee?: number | bigint;
+};
+export type EvmErc4337WalletConfig = EvmErc4337WalletCommonConfig & (EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig);
 import { WalletAccountReadOnly } from '@tetherto/wdk-wallet';

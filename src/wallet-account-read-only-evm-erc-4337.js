@@ -46,7 +46,8 @@ import { Safe4337Pack, GenericFeeEstimator, PimlicoFeeEstimator } from '@tethert
  * @property {false} [useNativeCoins] - Whether to use native coins instead of a paymaster to pay for gas fees.
  * @property {string} paymasterUrl - The url of the paymaster service.
  * @property {string} paymasterAddress - The address of the paymaster smart contract.
- * @property {string | null} paymasterTokenAddress - The paymaster token address.
+ * @property {Object | null} paymasterToken - The paymaster token configuration.
+ * @property {string} paymasterToken.address - The address of the paymaster token.
  * @property {number | bigint} [transferMaxFee] - The maximum fee amount for transfer operations.
  */
 
@@ -168,13 +169,13 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
    * @returns {Promise<bigint>} The paymaster token balance (in base unit).
    */
   async getPaymasterTokenBalance () {
-    const { paymasterTokenAddress } = this._config
+    const { paymasterToken } = this._config
 
-    if (!paymasterTokenAddress) {
+    if (!paymasterToken) {
       throw new Error('Paymaster token is not configured.')
     }
 
-    return await this.getTokenBalance(paymasterTokenAddress)
+    return await this.getTokenBalance(paymasterToken.address)
   }
 
   /**
@@ -185,7 +186,13 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
   async quoteSendTransaction (tx, config) {
-    const { isSponsored, useNativeCoins, paymasterTokenAddress } = { ...this._config, ...config }
+    const mergedConfig = { ...this._config, ...config }
+
+    if (config) {
+      this._validateConfig(mergedConfig)
+    }
+
+    const { isSponsored, useNativeCoins, paymasterToken } = mergedConfig
 
     if (isSponsored) {
       return { fee: 0n }
@@ -194,7 +201,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     const usePaymaster = !useNativeCoins
 
     const fee = await this._getUserOperationGasCost([tx].flat(), {
-      paymasterTokenAddress: useNativeCoins ? undefined : paymasterTokenAddress,
+      paymasterTokenAddress: useNativeCoins ? undefined : paymasterToken?.address,
       amountToApprove: useNativeCoins ? 0n : BigInt(Number.MAX_SAFE_INTEGER)
     }, usePaymaster)
 
@@ -272,8 +279,55 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
    */
   async verify (message, signature) {
     const evmReadOnlyAccount = new WalletAccountReadOnlyEvm(this._ownerAccountAddress, this._config)
-
     return await evmReadOnlyAccount.verify(message, signature)
+  }
+
+  /**
+   * Validates the configuration to ensure all required fields are present.
+   *
+   * @protected
+   * @param {EvmErc4337WalletConfig} config - The configuration to validate.
+   * @throws {Error} If the configuration is invalid or has missing required fields.
+   */
+  _validateConfig (config) {
+    const { isSponsored, useNativeCoins, paymasterUrl, paymasterAddress, paymasterToken } = config
+
+    if (isSponsored && useNativeCoins) {
+      throw new Error("Configuration error: Cannot use both 'isSponsored: true' and 'useNativeCoins: true'. Please use only one.")
+    }
+
+    if (!isSponsored && !useNativeCoins) {
+      const missingFields = []
+
+      if (!paymasterUrl) {
+        missingFields.push('paymasterUrl')
+      }
+      if (!paymasterAddress) {
+        missingFields.push('paymasterAddress')
+      }
+      if (!paymasterToken) {
+        missingFields.push('paymasterToken')
+      } else if (!paymasterToken.address) {
+        missingFields.push('paymasterToken.address')
+      }
+
+      if (missingFields.length > 0) {
+        throw new Error(`Configuration error: Missing required paymaster token configuration fields: ${missingFields.join(', ')}.`)
+      }
+    }
+
+    if (isSponsored) {
+      const missingFields = []
+
+      if (!paymasterUrl) {
+        missingFields.push('paymasterUrl')
+      }
+
+      if (missingFields.length > 0) {
+        throw new Error(`Configuration error: Missing required sponsorship policy configuration fields: ${missingFields.join(', ')}.`)
+      }
+    }
+  }
   }
 
   /**
@@ -315,7 +369,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
         paymasterOptions: {
           paymasterUrl: this._config.paymasterUrl,
           paymasterAddress: this._config.paymasterAddress,
-          paymasterTokenAddress: this._config.paymasterTokenAddress,
+          paymasterTokenAddress: this._config.paymasterToken?.address,
           skipApproveTransaction: true
         },
         customContracts: {
