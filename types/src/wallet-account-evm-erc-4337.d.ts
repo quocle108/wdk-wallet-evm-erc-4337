@@ -93,4 +93,4 @@ export type EvmErc4337WalletPaymasterTokenConfig = import("./wallet-account-read
 export type EvmErc4337WalletSponsorshipPolicyConfig = import("./wallet-account-read-only-evm-erc-4337.js").EvmErc4337WalletSponsorshipPolicyConfig;
 export type EvmErc4337WalletNativeCoinsConfig = import("./wallet-account-read-only-evm-erc-4337.js").EvmErc4337WalletNativeCoinsConfig;
 import WalletAccountReadOnlyEvmErc4337 from './wallet-account-read-only-evm-erc-4337.js';
-import { Safe4337Pack } from '@wdk-safe-global/relay-kit';
+import { Safe4337Pack } from '@tetherto/wdk-safe-relay-kit';
