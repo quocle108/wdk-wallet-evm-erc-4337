@@ -632,6 +632,7 @@ new WalletAccountReadOnlyEvmErc4337(address, config)
 | `getTokenBalance(tokenAddress)` | Returns the balance of a specific ERC20 token | `Promise<bigint>` |
 | `quoteSendTransaction(tx)` | Estimates the fee for a UserOperation | `Promise<{fee: bigint}>` |
 | `quoteTransfer(options)` | Estimates the fee for an ERC20 transfer | `Promise<{fee: bigint}>` |
+| `verify(message, signature)` | Verifies a message signature | `Promise<boolean>` |
 
 ##### `getBalance()`
 Returns the smart contract wallet's native token balance (e.g., ETH, MATIC, etc.) in wei.
@@ -707,6 +708,21 @@ const quote = await readOnlyAccount.quoteTransfer({
 })
 console.log('Estimated transfer UserOperation fee:', quote.fee, 'wei')
 console.log('Estimated fee in ETH:', Number(quote.fee) / 1e18)
+```
+
+##### `verify(message, signature)`
+Verifies a message signature using the account's public key.
+
+**Parameters:**
+- `message` (string): Original message
+- `signature` (string): Signature as hex string
+
+**Returns:** `Promise<boolean>` - True if signature is valid
+
+**Example:**
+```javascript
+const isValid = await readOnlyAccount.verify('Hello ERC-4337!', signature)
+console.log('Signature valid:', isValid)
 ```
 
 ## 🌐 Supported Networks
