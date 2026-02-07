@@ -44,12 +44,13 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     /** @private */
     private _ownerAccountAddress;
     /**
-     * Returns the account's address.
-     * Uses local CREATE2 address prediction without making network calls.
+     * Predicts the address of a safe account.
      *
-     * @returns {Promise<string>} The account's address.
+     * @param {string} owner - The safe owner's address.
+     * @param {Pick<EvmErc4337WalletConfig, 'chainId' | 'safeModulesVersion'>} config - The safe configuration
+     * @returns {string} The Safe address.
      */
-    getAddress(): Promise<string>;
+    static predictSafeAddress(owner: string, { chainId, safeModulesVersion }: Pick<EvmErc4337WalletConfig, "chainId" | "safeModulesVersion">): string;
     /**
      * Returns the account's eth balance.
      *
@@ -57,11 +58,11 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      */
     getBalance(): Promise<bigint>;
     /**
-     * Returns the account balance for a specific token.
-     *
-     * @param {string} tokenAddress - The smart contract address of the token.
-     * @returns {Promise<bigint>} The token balance (in base unit).
-     */
+    * Returns the account balance for a specific token.
+    *
+    * @param {string} tokenAddress - The smart contract address of the token.
+    * @returns {Promise<bigint>} The token balance (in base unit).
+    */
     getTokenBalance(tokenAddress: string): Promise<bigint>;
     /**
      * Returns the account's balance for the paymaster token provided in the wallet account configuration.
