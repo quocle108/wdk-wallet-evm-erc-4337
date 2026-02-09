@@ -34,13 +34,6 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * @type {bigint | undefined}
      */
     protected _chainId: bigint | undefined;
-    /**
-     * The predicted safe address (cached).
-     *
-     * @private
-     * @type {string | undefined}
-     */
-    private _predictedAddress;
     /** @private */
     private _ownerAccountAddress;
     /**

@@ -106,14 +106,6 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      */
     this._chainId = undefined
 
-    /**
-     * The predicted safe address (cached).
-     *
-     * @private
-     * @type {string | undefined}
-     */
-    this._predictedAddress = undefined
-
     /** @private */
     this._ownerAccountAddress = address
   }
