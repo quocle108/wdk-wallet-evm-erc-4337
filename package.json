@@ -51,7 +51,6 @@
   "overrides": {
     "axios": "1.12.2",
     "cookie": "1.0.2",
-    "fastify": "5.7.4",
     "tar": "7.5.7",
     "tmp": "0.2.5",
     "undici": "7.21.0",
