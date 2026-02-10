@@ -24,10 +24,10 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     /**
      * The safe's fee estimator.
      *
-     * @protected
-     * @type {GenericFeeEstimator | undefined}
+     * @private
+     * @type {Map<string, GenericFeeEstimator | PimlicoFeeEstimator>}
      */
-    protected _feeEstimator: GenericFeeEstimator | undefined;
+    private _feeEstimators;
     /**
      * The chain id.
      *
@@ -152,6 +152,7 @@ export type Eip1193Provider = import("ethers").Eip1193Provider;
 export type UserOperationReceipt = import("@tetherto/wdk-safe-relay-kit").UserOperationReceipt;
 export type Safe4337Pack = import("@tetherto/wdk-safe-relay-kit").Safe4337Pack;
 export type GenericFeeEstimator = import("@tetherto/wdk-safe-relay-kit").GenericFeeEstimator;
+export type PimlicoFeeEstimator = import("@tetherto/wdk-safe-relay-kit").PimlicoFeeEstimator;
 export type EvmTransaction = import("@tetherto/wdk-wallet-evm").EvmTransaction;
 export type TransactionResult = import("@tetherto/wdk-wallet-evm").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet-evm").TransferOptions;

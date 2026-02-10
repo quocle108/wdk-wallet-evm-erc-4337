@@ -101,12 +101,12 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     this._safe4337Packs = new Map()
 
     /**
-     * The safe's fee estimator.
+     * Map of fee estimators cached by bundler URL.
      *
-     * @protected
-     * @type {GenericFeeEstimator | undefined}
+     * @private
+     * @type {Map<string, GenericFeeEstimator | PimlicoFeeEstimator>}
      */
-    this._feeEstimator = undefined
+    this._feeEstimators = new Map()
 
     /**
      * The chain id.
@@ -408,25 +408,27 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     return evmReadOnlyAccount
   }
 
-  /** @private */
-  async _getFeeEstimator () {
-    if (!this._feeEstimator) {
-      const { bundlerUrl } = this._config
+  /**
+   * @private
+   * @param {string} bundlerUrl - The bundler URL to select the appropriate fee estimator.
+   */
+  async _getFeeEstimator (bundlerUrl) {
+    if (!this._feeEstimators.has(bundlerUrl)) {
       const isPimlico = bundlerUrl?.includes('pimlico')
 
       if (isPimlico) {
-        this._feeEstimator = new PimlicoFeeEstimator()
+        this._feeEstimators.set(bundlerUrl, new PimlicoFeeEstimator())
       } else {
         const chainId = await this._getChainId()
 
-        this._feeEstimator = new GenericFeeEstimator(
+        this._feeEstimators.set(bundlerUrl, new GenericFeeEstimator(
           this._config.provider,
           `0x${chainId.toString(16)}`
-        )
+        ))
       }
     }
 
-    return this._feeEstimator
+    return this._feeEstimators.get(bundlerUrl)
   }
 
   /**
@@ -445,7 +447,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
       const safeOperation = await safe4337Pack.createTransaction({
         transactions: txs.map(tx => ({ from: address, ...tx })),
         options: {
-          feeEstimator: await this._getFeeEstimator(),
+          feeEstimator: await this._getFeeEstimator(config.bundlerUrl),
           ...options
         }
       })
