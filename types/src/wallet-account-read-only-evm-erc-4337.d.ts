@@ -148,8 +148,6 @@ export type TransferOptions = import("@tetherto/wdk-wallet-evm").TransferOptions
 export type TransferResult = import("@tetherto/wdk-wallet-evm").TransferResult;
 export type EvmTransactionReceipt = import("@tetherto/wdk-wallet-evm").EvmTransactionReceipt;
 export type TypedData = import("@tetherto/wdk-wallet-evm").TypedData;
-export type TypedDataDomain = import("@tetherto/wdk-wallet-evm").TypedDataDomain;
-export type TypedDataField = import("@tetherto/wdk-wallet-evm").TypedDataField;
 export type EvmErc4337WalletCommonConfig = {
     /**
      * - The blockchain's id (e.g., 1 for ethereum).

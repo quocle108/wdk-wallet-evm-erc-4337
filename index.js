@@ -27,8 +27,6 @@
 /** @typedef {import('@tetherto/wdk-wallet-evm').ApproveOptions} ApproveOptions */
 
 /** @typedef {import('@tetherto/wdk-wallet-evm').TypedData} TypedData */
-/** @typedef {import('@tetherto/wdk-wallet-evm').TypedDataDomain} TypedDataDomain */
-/** @typedef {import('@tetherto/wdk-wallet-evm').TypedDataField} TypedDataField */
 
 /** @typedef {import('./src/wallet-manager-evm-erc-4337.js').EvmErc4337WalletConfig} EvmErc4337WalletConfig */
 

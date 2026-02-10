@@ -32,8 +32,6 @@ import { Safe4337Pack, GenericFeeEstimator, PimlicoFeeEstimator } from '@tethert
 /** @typedef {import('@tetherto/wdk-wallet-evm').EvmTransactionReceipt} EvmTransactionReceipt */
 
 /** @typedef {import('@tetherto/wdk-wallet-evm').TypedData} TypedData */
-/** @typedef {import('@tetherto/wdk-wallet-evm').TypedDataDomain} TypedDataDomain */
-/** @typedef {import('@tetherto/wdk-wallet-evm').TypedDataField} TypedDataField */
 
 /**
  * @typedef {Object} EvmErc4337WalletCommonConfig
