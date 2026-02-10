@@ -77,9 +77,9 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      *
      * @param {TransferOptions} options - The transfer's options.
      * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
-     * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transfer's quotes.
+     * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
      */
-    quoteTransfer(options: TransferOptions, config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<Omit<TransactionResult, "hash">>;
+    quoteTransfer(options: TransferOptions, config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<Omit<TransferResult, "hash">>;
     /**
      * Returns a transaction's receipt.
      *
