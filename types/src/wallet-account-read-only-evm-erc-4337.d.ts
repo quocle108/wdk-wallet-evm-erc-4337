@@ -22,12 +22,12 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      */
     protected _safe4337Packs;
     /**
-     * Map of fee estimators cached by bundler URL.
+     * The fee estimator.
      *
      * @protected
-     * @type {Map<string, IFeeEstimator>}
+     * @type {IFeeEstimator | undefined}
      */
-    protected _feeEstimators;
+    protected _feeEstimator: IFeeEstimator | undefined;
     /**
      * The chain id.
      *
