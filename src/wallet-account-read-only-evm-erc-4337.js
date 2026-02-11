@@ -341,7 +341,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     } else if (isSponsored) {
       cacheKey = `sponsored:${paymasterUrl}`
     } else {
-      cacheKey = `paymaster:${paymasterUrl}:${paymasterAddress}:${paymasterToken?.address}`
+      cacheKey = `paymaster:${paymasterUrl}:${paymasterAddress}`
     }
 
     if (this._safe4337Packs.has(cacheKey)) {
