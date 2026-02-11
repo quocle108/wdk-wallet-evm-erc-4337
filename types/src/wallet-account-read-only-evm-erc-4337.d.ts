@@ -18,7 +18,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * Map of Safe4337Pack instances cached by configuration.
      *
      * @protected
-     * @type {Map<string, import('@tetherto/wdk-safe-relay-kit').Safe4337Pack>}
+     * @type {Map<string, Safe4337Pack>}
      */
     protected _safe4337Packs;
     /**
