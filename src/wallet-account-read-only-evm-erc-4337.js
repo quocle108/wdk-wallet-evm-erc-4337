@@ -420,13 +420,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     return this._feeEstimators.get(bundlerUrl)
   }
 
-  /**
-   * @private
-   * @param {EvmTransaction[]} txs - The transactions.
-   * @param {Object} options - The options.
-   * @param {Omit<EvmErc4337WalletConfig, 'transferMaxFee'>} config - The configuration.
-   * @returns {Promise<bigint>} The gas cost.
-   */
+  /** @private */
   async _getUserOperationGasCost (txs, options, config) {
     const safe4337Pack = await this._getSafe4337Pack(config)
 
