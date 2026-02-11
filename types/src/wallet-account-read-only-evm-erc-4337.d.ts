@@ -25,7 +25,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * Map of fee estimators cached by bundler URL.
      *
      * @protected
-     * @type {Map<string, GenericFeeEstimator | PimlicoFeeEstimator>}
+     * @type {Map<string, IFeeEstimator>}
      */
     protected _feeEstimators;
     /**
@@ -153,6 +153,7 @@ export type UserOperationReceipt = import("@tetherto/wdk-safe-relay-kit").UserOp
 export type Safe4337Pack = import("@tetherto/wdk-safe-relay-kit").Safe4337Pack;
 export type GenericFeeEstimator = import("@tetherto/wdk-safe-relay-kit").GenericFeeEstimator;
 export type PimlicoFeeEstimator = import("@tetherto/wdk-safe-relay-kit").PimlicoFeeEstimator;
+export type IFeeEstimator = import("@tetherto/wdk-safe-relay-kit/dist/src/packs/safe-4337/types").IFeeEstimator;
 export type EvmTransaction = import("@tetherto/wdk-wallet-evm").EvmTransaction;
 export type TransactionResult = import("@tetherto/wdk-wallet-evm").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet-evm").TransferOptions;

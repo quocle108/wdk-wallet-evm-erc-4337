@@ -24,6 +24,8 @@ import { Safe4337Pack, GenericFeeEstimator, PimlicoFeeEstimator } from '@tethert
 
 /** @typedef {import('@tetherto/wdk-safe-relay-kit').UserOperationReceipt} UserOperationReceipt */
 
+/** @typedef {import('@tetherto/wdk-safe-relay-kit/dist/src/packs/safe-4337/types').IFeeEstimator} IFeeEstimator */
+
 /** @typedef {import('@tetherto/wdk-wallet-evm').EvmTransaction} EvmTransaction */
 /** @typedef {import('@tetherto/wdk-wallet-evm').TransactionResult} TransactionResult */
 /** @typedef {import('@tetherto/wdk-wallet-evm').TransferOptions} TransferOptions */
@@ -104,7 +106,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * Map of fee estimators cached by bundler URL.
      *
      * @protected
-     * @type {Map<string, GenericFeeEstimator | PimlicoFeeEstimator>}
+     * @type {Map<string, IFeeEstimator>}
      */
     this._feeEstimators = new Map()
 
