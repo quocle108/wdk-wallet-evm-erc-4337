@@ -139,13 +139,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     private _getEvmReadOnlyAccount;
     /** @private */
     private _getFeeEstimator;
-    /**
-     * @private
-     * @param {EvmTransaction[]} txs - The transactions.
-     * @param {Object} options - The options.
-     * @param {Omit<EvmErc4337WalletConfig, 'transferMaxFee'>} config - The configuration.
-     * @returns {Promise<bigint>} The gas cost.
-     */
+    /** @private */
     private _getUserOperationGasCost;
 }
 export type Eip1193Provider = import("ethers").Eip1193Provider;
