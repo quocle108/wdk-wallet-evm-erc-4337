@@ -18,9 +18,7 @@ import { Contract } from 'ethers'
 
 import { WalletAccountEvm } from '@tetherto/wdk-wallet-evm'
 
-import { Safe4337Pack } from '@tetherto/wdk-safe-relay-kit'
-
-import WalletAccountReadOnlyEvmErc4337, { SALT_NONCE } from './wallet-account-read-only-evm-erc-4337.js'
+import WalletAccountReadOnlyEvmErc4337 from './wallet-account-read-only-evm-erc-4337.js'
 
 /** @typedef {import('ethers').Eip1193Provider} Eip1193Provider */
 
@@ -38,6 +36,8 @@ import WalletAccountReadOnlyEvmErc4337, { SALT_NONCE } from './wallet-account-re
 /** @typedef {import('./wallet-account-read-only-evm-erc-4337.js').EvmErc4337WalletPaymasterTokenConfig} EvmErc4337WalletPaymasterTokenConfig */
 /** @typedef {import('./wallet-account-read-only-evm-erc-4337.js').EvmErc4337WalletSponsorshipPolicyConfig} EvmErc4337WalletSponsorshipPolicyConfig */
 /** @typedef {import('./wallet-account-read-only-evm-erc-4337.js').EvmErc4337WalletNativeCoinsConfig} EvmErc4337WalletNativeCoinsConfig */
+
+/** @typedef {import('@tetherto/wdk-safe-relay-kit').Safe4337Pack} Safe4337Pack */
 
 const FEE_TOLERANCE_COEFFICIENT = 120n
 
@@ -110,7 +110,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * Approves a specific amount of tokens to a spender.
    *
    * @param {ApproveOptions} options - The approve options.
-   * @returns {Promise<TransactionResult>} - The transaction’s result.
+   * @returns {Promise<TransactionResult>} - The transaction's result.
    * @throws {Error} - If trying to approve usdts on ethereum with allowance not equal to zero (due to the usdt allowance reset requirement).
    */
   async approve (options) {
@@ -226,53 +226,30 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
   /**
    * Returns the safe's erc-4337 pack of the account.
+   * Extends parent implementation by adding signer for transaction signing.
    *
    * @protected
    * @param {Omit<EvmErc4337WalletConfig, 'transferMaxFee'>} [config] - The configuration object. Defaults to this._config if not provided.
    * @returns {Promise<Safe4337Pack>} The safe's erc-4337 pack.
    */
   async _getSafe4337Pack (config = this._config) {
-    const { isSponsored, useNativeCoins, paymasterUrl, paymasterAddress, paymasterToken } = config
+    const owner = await this._ownerAccount.getAddress()
 
-    let cacheKey
-    if (useNativeCoins) {
-      cacheKey = 'native'
-    } else if (isSponsored) {
-      cacheKey = `sponsored:${paymasterUrl}`
-    } else {
-      cacheKey = `paymaster:${paymasterUrl}:${paymasterAddress}`
+    const originalOwner = this._ownerAccountAddress
+    this._ownerAccountAddress = owner
+
+    try {
+      const safe4337Pack = await super._getSafe4337Pack(config)
+
+      const safeProvider = safe4337Pack.protocolKit.getSafeProvider()
+      if (!safeProvider.signer) {
+        safeProvider.signer = this._ownerAccount._account
+      }
+
+      return safe4337Pack
+    } finally {
+      this._ownerAccountAddress = originalOwner
     }
-
-    if (!this._safe4337Packs.has(cacheKey)) {
-      const owner = await this._ownerAccount.getAddress()
-
-      const safe4337Pack = await Safe4337Pack.init({
-        provider: config.provider,
-        signer: this._ownerAccount._account,
-        bundlerUrl: config.bundlerUrl,
-        safeModulesVersion: config.safeModulesVersion,
-        options: {
-          owners: [owner],
-          threshold: 1,
-          saltNonce: SALT_NONCE
-        },
-        customContracts: {
-          entryPointAddress: config.entryPointAddress
-        },
-        paymasterOptions: useNativeCoins
-          ? undefined
-          : {
-              paymasterUrl,
-              paymasterAddress,
-              paymasterTokenAddress: paymasterToken?.address,
-              skipApproveTransaction: true
-            }
-      })
-
-      this._safe4337Packs.set(cacheKey, safe4337Pack)
-    }
-
-    return this._safe4337Packs.get(cacheKey)
   }
 
   /** @private */
