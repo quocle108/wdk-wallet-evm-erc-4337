@@ -169,7 +169,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const { isSponsored, useNativeCoins } = mergedConfig
 
-    const fee = this._getValidCachedFee() ?? (await this.quoteSendTransaction(tx, config)).fee
+    const fee = this._getValidCachedFee(tx) ?? (await this.quoteSendTransaction(tx, config)).fee
 
     const amountToApprove = (isSponsored || useNativeCoins) ? 0n : fee
 
@@ -199,7 +199,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const tx = await WalletAccountEvm._getTransferTransaction(options)
 
-    const fee = this._getValidCachedFee() ?? (await this.quoteSendTransaction(tx, config)).fee
+    const fee = this._getValidCachedFee(tx) ?? (await this.quoteSendTransaction(tx, config)).fee
 
     if (!isSponsored && transferMaxFee !== undefined && fee >= transferMaxFee) {
       throw new Error('Exceeded maximum fee cost for transfer operation.')
@@ -256,23 +256,30 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
   }
 
   /**
-   * Returns the cached fee if it exists and is not expired, then clears it.
+   * Returns the cached fee if it exists, is not expired, and matches the given transaction.
+   * Clears cache on match or expiry; preserves it on mismatch.
    *
    * @private
-   * @returns {bigint | undefined} The cached fee, or undefined if not available or expired.
+   * @param {EvmTransaction | EvmTransaction[]} tx - The transaction to match against.
+   * @returns {bigint | undefined} The cached fee, or undefined if not available, expired, or mismatched.
    */
-  _getValidCachedFee () {
+  _getValidCachedFee (tx) {
     const quote = this._lastQuote
 
     if (!quote) {
       return undefined
     }
 
-    this._lastQuote = undefined
-
     if (Date.now() - quote.createdAt > QUOTE_MAX_AGE_MS) {
+      this._lastQuote = undefined
       return undefined
     }
+
+    if (JSON.stringify([tx].flat(), (_, v) => typeof v === 'bigint' ? v.toString() : v) !== quote.txKey) {
+      return undefined
+    }
+
+    this._lastQuote = undefined
 
     return quote.fee
   }

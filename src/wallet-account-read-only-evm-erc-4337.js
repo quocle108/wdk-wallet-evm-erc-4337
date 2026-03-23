@@ -233,7 +233,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
 
     const fee = BigInt(estimatedFee) * FEE_TOLERANCE_COEFFICIENT / 100n
 
-    this._lastQuote = { fee, createdAt: Date.now() }
+    this._lastQuote = { fee, createdAt: Date.now(), txKey: JSON.stringify([tx].flat(), (_, v) => typeof v === 'bigint' ? v.toString() : v) }
 
     return { fee }
   }

@@ -444,4 +444,30 @@ describe('@wdk/wallet-evm-erc-4337', () => {
     await expect(account.transfer(TRANSFER))
       .rejects.toThrow('Exceeded maximum fee cost for transfer operation.')
   }, TIMEOUT)
+
+  test('should not consume cached transfer fee when approve is called in between', async () => {
+    const account0 = await wallet.getAccountByPath("0'/0/0")
+
+    const TRANSFER = {
+      token: testToken.target,
+      recipient: ACCOUNT1.safeAddress,
+      amount: 1n
+    }
+
+    const { fee: quotedFee } = await account0.quoteTransfer(TRANSFER)
+
+    const APPROVE_TRANSACTION = {
+      to: testToken.target,
+      value: 0,
+      data: testToken.interface.encodeFunctionData('approve', [ACCOUNT1.safeAddress, 100n])
+    }
+
+    const { hash: approveHash } = await account0.sendTransaction(APPROVE_TRANSACTION)
+    await waitForTx(approveHash, account0)
+
+    const { hash, fee: transferFee } = await account0.transfer(TRANSFER)
+    await waitForTx(hash, account0)
+
+    expect(transferFee).toBe(quotedFee)
+  }, TIMEOUT)
 })
