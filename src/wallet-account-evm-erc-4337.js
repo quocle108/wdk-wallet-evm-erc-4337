@@ -42,6 +42,8 @@ import WalletAccountReadOnlyEvmErc4337 from './wallet-account-read-only-evm-erc-
 
 const FEE_TOLERANCE_COEFFICIENT = 120n
 
+const QUOTE_MAX_AGE_MS = 2 * 60 * 1_000
+
 const USDT_MAINNET_ADDRESS = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
 
 /** @implements {IWalletAccount} */
@@ -169,7 +171,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const { isSponsored, useNativeCoins } = mergedConfig
 
-    const { fee } = await this.quoteSendTransaction(tx, config)
+    const fee = this._getValidCachedFee() ?? (await this.quoteSendTransaction(tx, config)).fee
 
     const amountToApprove = (isSponsored || useNativeCoins) ? 0n : BigInt(fee * FEE_TOLERANCE_COEFFICIENT / 100n)
 
@@ -199,7 +201,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const tx = await WalletAccountEvm._getTransferTransaction(options)
 
-    const { fee } = await this.quoteSendTransaction(tx, config)
+    const fee = this._getValidCachedFee() ?? (await this.quoteSendTransaction(tx, config)).fee
 
     if (!isSponsored && transferMaxFee !== undefined && fee >= transferMaxFee) {
       throw new Error('Exceeded maximum fee cost for transfer operation.')
@@ -253,6 +255,28 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     }
 
     return safe4337Pack
+  }
+
+  /**
+   * Returns the cached fee if it exists and is not expired, then clears it.
+   *
+   * @private
+   * @returns {bigint | undefined} The cached fee, or undefined if not available or expired.
+   */
+  _getValidCachedFee () {
+    const quote = this._lastQuote
+
+    if (!quote) {
+      return undefined
+    }
+
+    this._lastQuote = undefined
+
+    if (Date.now() - quote.createdAt > QUOTE_MAX_AGE_MS) {
+      return undefined
+    }
+
+    return quote.fee
   }
 
   /** @private */

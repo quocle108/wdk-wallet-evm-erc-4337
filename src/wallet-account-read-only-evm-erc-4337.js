@@ -115,6 +115,14 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     this._feeEstimator = undefined
 
     /**
+     * Cached quote from the last fee estimation.
+     *
+     * @protected
+     * @type {{ fee: bigint, createdAt: number } | undefined}
+     */
+    this._lastQuote = undefined
+
+    /**
      * The chain id.
      *
      * @protected
@@ -220,6 +228,8 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
       ...mergedConfig,
       amountToApprove: useNativeCoins ? 0n : BigInt(Number.MAX_SAFE_INTEGER)
     })
+
+    this._lastQuote = { fee: BigInt(fee), createdAt: Date.now() }
 
     return { fee: BigInt(fee) }
   }
