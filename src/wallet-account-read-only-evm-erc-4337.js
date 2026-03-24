@@ -46,7 +46,6 @@ const FEE_TOLERANCE_COEFFICIENT = 120n
  * @property {string} txKey - A serialized key of the transaction used for cache matching.
  */
 
-
 /**
  * @typedef {Object} EvmErc4337WalletCommonConfig
  * @property {number} chainId - The blockchain's id (e.g., 1 for ethereum).
