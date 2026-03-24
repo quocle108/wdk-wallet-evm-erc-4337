@@ -48,7 +48,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
      * @param {TypedData} typedData - The typed data to sign.
      * @returns {Promise<string>} The typed data signature.
      */
-    signTypedData(typedData: TypedData): Promise<string>;
+    signTypedData({ domain, types, message }: TypedData): Promise<string>;
     /**
      * Approves a specific amount of tokens to a spender.
      *
