@@ -170,6 +170,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     const { isSponsored, useNativeCoins } = mergedConfig
 
     const fee = this._getValidCachedFee(tx) ?? (await this.quoteSendTransaction(tx, config)).fee
+    this._lastQuote = undefined
 
     const amountToApprove = (isSponsored || useNativeCoins) ? 0n : fee
 
@@ -200,6 +201,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     const tx = await WalletAccountEvm._getTransferTransaction(options)
 
     const fee = this._getValidCachedFee(tx) ?? (await this.quoteSendTransaction(tx, config)).fee
+    this._lastQuote = undefined
 
     if (!isSponsored && transferMaxFee !== undefined && fee >= transferMaxFee) {
       throw new Error('Exceeded maximum fee cost for transfer operation.')
