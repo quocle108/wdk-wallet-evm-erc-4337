@@ -30,6 +30,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      *
      * @param {string} address - The evm account's address.
      * @param {Omit<EvmErc4337WalletConfig, 'transferMaxFee'>} config - The configuration object.
+     * @throws {ConfigurationError} If `config.safeModulesVersion` is not in the supported set.
      */
     constructor(address: string, config: Omit<EvmErc4337WalletConfig, "transferMaxFee">);
     /**
@@ -79,6 +80,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * Returns the account's balance for the paymaster token provided in the wallet account configuration.
      *
      * @returns {Promise<bigint>} The paymaster token balance (in base unit).
+     * @throws {ConfigurationError} If no paymaster token is configured (sponsored or native-coins mode).
      */
     getPaymasterTokenBalance(): Promise<bigint>;
     /**
@@ -90,6 +92,8 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * @param {EvmTransaction | EvmTransaction[]} tx - The transaction, or an array of multiple transactions to send in batch.
      * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
      * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+     * @throws {ConfigurationError} If the override `config` is invalid or has missing required fields.
+     * @throws {Error} If the token paymaster reports AA50 (account does not hold the paymaster token).
      */
     quoteSendTransaction(tx: EvmTransaction | EvmTransaction[], config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<Omit<TransactionResult, "hash">>;
     /**
@@ -101,6 +105,8 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * @param {TransferOptions} options - The transfer's options.
      * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
      * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
+     * @throws {ConfigurationError} If the override `config` is invalid or has missing required fields.
+     * @throws {Error} If the token paymaster reports AA50 (account does not hold the paymaster token).
      */
     quoteTransfer(options: TransferOptions, config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<Omit<TransferResult, "hash">>;
     /**
