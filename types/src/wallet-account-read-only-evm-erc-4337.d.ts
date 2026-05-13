@@ -190,7 +190,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * @protected
      * @param {EvmTransaction[]} txs - The EVM transactions to include in the UserOperation.
      * @param {Omit<EvmErc4337WalletConfig, 'transferMaxFee'>} config - The wallet configuration to use for the build.
-     * @returns {Promise<BuiltUserOperation & { fee: bigint }>} The built operation plus its raw fee (no tolerance buffer applied).
+     * @returns {Promise<BuiltUserOperation & Omit<TransactionResult, 'hash'>>} The built operation plus its raw fee (no tolerance buffer applied).
      * @throws {Error} If the token paymaster reports AA50 (account does not hold the paymaster token).
      */
     protected _getUserOperationGasCost(txs: EvmTransaction[], config: Omit<EvmErc4337WalletConfig, "transferMaxFee">): Promise<BuiltUserOperation & Omit<TransactionResult, "hash">>;

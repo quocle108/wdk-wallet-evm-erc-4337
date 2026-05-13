@@ -237,7 +237,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const hash = await this._sendUserOperation([tx].flat(), { config: mergedConfig, cachedBuild: cached })
 
-    this._invalidateCachedUserOps()
+    this._quoteCache.clear()
 
     return { hash, fee }
   }
@@ -274,7 +274,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const hash = await this._sendUserOperation([tx], { config: mergedConfig, cachedBuild: cached })
 
-    this._invalidateCachedUserOps()
+    this._quoteCache.clear()
 
     return { hash, fee }
   }
@@ -297,15 +297,6 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    */
   dispose () {
     this._ownerAccount.dispose()
-  }
-
-  /** @private */
-  _invalidateCachedUserOps () {
-    for (const quote of this._quoteCache.values()) {
-      quote.userOp = undefined
-      quote.smartAccount = undefined
-      quote.chainId = undefined
-    }
   }
 
   /** @private */
