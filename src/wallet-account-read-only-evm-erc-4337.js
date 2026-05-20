@@ -483,7 +483,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
   /**
    * Wraps a string RPC URL or provider into an EIP-1193 compatible provider.
    *
-   * @private
+   * @protected
    * @param {string | Eip1193Provider} provider - The url of the rpc provider, or an instance of a class that implements eip-1193.
    * @returns { Eip1193Provider } A wrapped Eip1193Provider instance.
    */
@@ -501,7 +501,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
   /**
    * Creates a FailoverProvider from the configured providers. If only one provider is supplied, it is wrapped and returned.
    *
-   * @private
+   * @protected
    * @param {Omit<EvmErc4337WalletConfig, 'transferMaxFee'>} [config] - The configuration object.
    * @returns {Eip1193Provider} A wrapped Eip1193Provider instance.
    * @throws {Error} If the `provider` option is set to an empty array.
