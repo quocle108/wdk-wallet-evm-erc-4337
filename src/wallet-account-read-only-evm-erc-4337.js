@@ -607,7 +607,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
    * @protected
    * @param {MetaTransaction[]} calls - The meta-transactions to include in the UserOperation.
    * @param {Omit<EvmErc4337WalletConfig, 'transferMaxFee'>} config - The wallet configuration.
-   * @param {Object} [txOverrides] - Optional UserOperationV7 gas overrides extracted from the input transaction(s).
+   * @param {Pick<EvmErc4337Transaction, 'callGasLimit' | 'verificationGasLimit' | 'preVerificationGas' | 'maxFeePerGas' | 'maxPriorityFeePerGas'>} [txOverrides] - Optional UserOperationV7 gas overrides extracted from the input transaction(s).
    * @returns {Promise<BuiltUserOperation>} The built operation, signing context, and (in token mode) the paymaster quote.
    */
   async _buildUserOperation (calls, config, txOverrides = {}) {
