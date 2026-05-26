@@ -207,10 +207,10 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * @protected
      * @param {MetaTransaction[]} calls - The meta-transactions to include in the UserOperation.
      * @param {Omit<EvmErc4337WalletConfig, 'transferMaxFee'>} config - The wallet configuration.
-     * @param {Object} [txOverrides] - Optional UserOperationV7 gas overrides extracted from the input transaction(s).
+     * @param {Pick<EvmErc4337Transaction, 'callGasLimit' | 'verificationGasLimit' | 'preVerificationGas' | 'maxFeePerGas' | 'maxPriorityFeePerGas'>} [txOverrides] - Optional UserOperationV7 gas overrides extracted from the input transaction(s).
      * @returns {Promise<BuiltUserOperation>} The built operation, signing context, and (in token mode) the paymaster quote.
      */
-    protected _buildUserOperation(calls: import('abstractionkit').MetaTransaction[], config: Omit<EvmErc4337WalletConfig, "transferMaxFee">, txOverrides?: any): Promise<BuiltUserOperation>;
+    protected _buildUserOperation(calls: import('abstractionkit').MetaTransaction[], config: Omit<EvmErc4337WalletConfig, "transferMaxFee">, txOverrides?: Pick<EvmErc4337Transaction, "callGasLimit" | "verificationGasLimit" | "preVerificationGas" | "maxFeePerGas" | "maxPriorityFeePerGas">): Promise<BuiltUserOperation>;
     /**
      * Extracts the optional UserOperationV7 gas overrides from a single transaction.
      *
@@ -260,23 +260,23 @@ export type EvmErc4337Transaction = {
      */
     data?: string;
     /**
-     * - Override for the UserOperation's callGasLimit.
+     * - If set, overrides the user operations' call gas limit.
      */
     callGasLimit?: number | bigint;
     /**
-     * - Override for the UserOperation's verificationGasLimit.
+     * - If set, overrides the user operations' verification gas limit.
      */
     verificationGasLimit?: number | bigint;
     /**
-     * - Override for the UserOperation's preVerificationGas.
+     * - If set, overrides the user operations' pre-verification gas.
      */
     preVerificationGas?: number | bigint;
     /**
-     * - Override for the UserOperation's maxFeePerGas (EIP-1559 cap). When unset, falls back to the bundler-fetched gas price.
+     * - If set, overrides the user operations' max fee per gas (EIP-1559 cap). Treated as a pair with `maxPriorityFeePerGas`: setting either disables the bundler-fetched fee fallback for both.
      */
     maxFeePerGas?: number | bigint;
     /**
-     * - Override for the UserOperation's maxPriorityFeePerGas.
+     * - If set, overrides the user operations' max priority fee per gas. Treated as a pair with `maxFeePerGas`: setting either disables the bundler-fetched fee fallback for both.
      */
     maxPriorityFeePerGas?: number | bigint;
 };

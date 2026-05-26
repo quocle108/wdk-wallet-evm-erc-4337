@@ -86,10 +86,10 @@ export const FEE_TOLERANCE_COEFFICIENT = 120n
  * @property {number | bigint} value - The amount of native coin to send to the recipient (in wei).
  * @property {string} [data] - The call's data in hex format.
  * @property {number | bigint} [callGasLimit] - If set, overrides the user operations' call gas limit.
- * @property {number | bigint} [verificationGasLimit] - Override for the UserOperation's verificationGasLimit.
- * @property {number | bigint} [preVerificationGas] - Override for the UserOperation's preVerificationGas.
- * @property {number | bigint} [maxFeePerGas] - Override for the UserOperation's maxFeePerGas (EIP-1559 cap). When unset, falls back to the bundler-fetched gas price.
- * @property {number | bigint} [maxPriorityFeePerGas] - Override for the UserOperation's maxPriorityFeePerGas.
+ * @property {number | bigint} [verificationGasLimit] - If set, overrides the user operations' verification gas limit.
+ * @property {number | bigint} [preVerificationGas] - If set, overrides the user operations' pre-verification gas.
+ * @property {number | bigint} [maxFeePerGas] - If set, overrides the user operations' max fee per gas (EIP-1559 cap). Treated as a pair with `maxPriorityFeePerGas`: setting either disables the bundler-fetched fee fallback for both.
+ * @property {number | bigint} [maxPriorityFeePerGas] - If set, overrides the user operations' max priority fee per gas. Treated as a pair with `maxFeePerGas`: setting either disables the bundler-fetched fee fallback for both.
  */
 
 /**
@@ -621,7 +621,10 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
 
     const gasPrice = await this._fetchBundlerGasPrice(config.bundlerUrl)
 
-    const overrides = { ...gasPrice, ...txOverrides }
+    const feePairOverridden = txOverrides.maxFeePerGas !== undefined || txOverrides.maxPriorityFeePerGas !== undefined
+    const overrides = feePairOverridden
+      ? { ...txOverrides }
+      : { ...gasPrice, ...txOverrides }
 
     const baseUserOp = (mode === PaymasterMode.NATIVE || provider === 'candide')
       ? await smartAccount.createUserOperation(calls, this._provider, config.bundlerUrl, overrides)
@@ -632,7 +635,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
     }
 
     const { userOp, tokenQuote } = await this._applyPaymasterToUserOp({
-      mode, smartAccount, userOp: baseUserOp, config, chainId
+      mode, smartAccount, userOp: baseUserOp, config, chainId, txOverrides
     })
     return { userOp, smartAccount, mode, chainId, tokenQuote }
   }
@@ -728,19 +731,24 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
   }
 
   /** @private */
-  async _applyPaymasterToUserOp ({ mode, smartAccount, userOp, config, chainId }) {
+  async _applyPaymasterToUserOp ({ mode, smartAccount, userOp, config, chainId, txOverrides = {} }) {
     const erc7677 = this._getPaymaster(config.paymasterUrl, { chainId: BigInt(chainId) })
 
     const context = mode === PaymasterMode.TOKEN
       ? { token: config.paymasterToken.address }
       : { sponsorshipPolicyId: config.sponsorshipPolicyId }
 
+    const paymasterOverrides = { entrypoint: ENTRYPOINT_V7 }
+    if (txOverrides.callGasLimit !== undefined) paymasterOverrides.callGasLimit = txOverrides.callGasLimit
+    if (txOverrides.verificationGasLimit !== undefined) paymasterOverrides.verificationGasLimit = txOverrides.verificationGasLimit
+    if (txOverrides.preVerificationGas !== undefined) paymasterOverrides.preVerificationGas = txOverrides.preVerificationGas
+
     const result = await erc7677.createPaymasterUserOperation(
       smartAccount,
       userOp,
       config.bundlerUrl,
       context,
-      { entrypoint: ENTRYPOINT_V7 }
+      paymasterOverrides
     )
 
     return { userOp: result.userOperation, tokenQuote: result.tokenQuote }
