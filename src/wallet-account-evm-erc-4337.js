@@ -18,7 +18,7 @@ import { Contract } from 'ethers'
 
 import { WalletAccountEvm } from '@tetherto/wdk-wallet-evm'
 
-import { AbstractionKitError, fetchAccountNonce } from 'abstractionkit'
+import { AbstractionKitError, ENTRYPOINT_V7, calculateUserOperationMaxGasCost, fetchAccountNonce } from 'abstractionkit'
 
 import WalletAccountReadOnlyEvmErc4337, { FEE_TOLERANCE_COEFFICIENT } from './wallet-account-read-only-evm-erc-4337.js'
 
@@ -87,6 +87,12 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
      * @type {Map<string, TransactionQuote>}
      */
     this._quoteCache = new Map()
+
+    /** @private */
+    this._reservedNonces = new Set()
+
+    /** @private */
+    this._nonceLock = Promise.resolve()
   }
 
   /**
@@ -259,13 +265,16 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
       this._validateConfig(mergedConfig)
     }
 
-    const cached = await this._resolveQuote(tx, config)
+    const txs = [tx].flat()
+    const prepared = await this._prepareForSend(tx, txs, mergedConfig)
 
-    const fee = cached.fee
-
-    const hash = await this._sendUserOperation([tx].flat(), { config: mergedConfig, cachedBuild: cached })
-
-    return { hash, fee }
+    try {
+      const hash = await this._sendUserOperation(txs, { config: mergedConfig, cachedBuild: prepared })
+      return { hash, fee: prepared.fee }
+    } catch (error) {
+      this._maybeReleaseNonceOnRejection(error, prepared.userOp?.nonce)
+      throw error
+    }
   }
 
   /**
@@ -286,17 +295,21 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const tx = await WalletAccountEvm._getTransferTransaction(options)
 
-    const cached = await this._resolveQuote(tx, config)
+    const txs = [tx]
+    const prepared = await this._prepareForSend(tx, txs, mergedConfig)
 
-    const fee = cached.fee
-
-    if (!isSponsored && transferMaxFee !== undefined && fee >= transferMaxFee) {
+    if (!isSponsored && transferMaxFee !== undefined && prepared.fee >= transferMaxFee) {
+      this._releaseNonce(prepared.userOp?.nonce)
       throw new Error('Exceeded maximum fee cost for transfer operation.')
     }
 
-    const hash = await this._sendUserOperation([tx], { config: mergedConfig, cachedBuild: cached })
-
-    return { hash, fee }
+    try {
+      const hash = await this._sendUserOperation(txs, { config: mergedConfig, cachedBuild: prepared })
+      return { hash, fee: prepared.fee }
+    } catch (error) {
+      this._maybeReleaseNonceOnRejection(error, prepared.userOp?.nonce)
+      throw error
+    }
   }
 
   /**
@@ -334,6 +347,86 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     }
 
     return cached
+  }
+
+  /** @private */
+  async _prepareForSend (tx, txs, config) {
+    const allocatedNonce = await this._allocateNonce()
+
+    try {
+      const cached = this._consumeCachedQuote(tx)
+      if (cached?.userOp && cached.userOp.nonce === allocatedNonce) {
+        return cached
+      }
+      return await this._buildAtNonce(txs, allocatedNonce, config)
+    } catch (error) {
+      this._releaseNonce(allocatedNonce)
+      throw error
+    }
+  }
+
+  /** @private */
+  async _buildAtNonce (txs, allocatedNonce, config) {
+    const calls = WalletAccountReadOnlyEvmErc4337._toMetaTransactions(txs)
+    const txOverrides = { ...WalletAccountReadOnlyEvmErc4337._extractGasOverrides(txs[0]), nonce: allocatedNonce }
+
+    const { userOp, smartAccount, chainId, tokenQuote } = await this._buildUserOperation(calls, config, txOverrides)
+
+    const fee = config.isSponsored
+      ? 0n
+      : BigInt(tokenQuote ? tokenQuote.tokenCost : calculateUserOperationMaxGasCost(userOp)) * FEE_TOLERANCE_COEFFICIENT / 100n
+
+    return { fee, userOp, smartAccount, chainId }
+  }
+
+  /** @private */
+  async _allocateNonce () {
+    const prev = this._nonceLock
+    let release = () => {}
+    this._nonceLock = new Promise(resolve => { release = resolve })
+
+    try {
+      await prev
+      const onChainNonce = await fetchAccountNonce(this._provider, ENTRYPOINT_V7, this._address)
+
+      for (const reserved of this._reservedNonces) {
+        if (reserved < onChainNonce) this._reservedNonces.delete(reserved)
+      }
+
+      let candidate = onChainNonce
+      while (this._reservedNonces.has(candidate)) candidate += 1n
+      this._reservedNonces.add(candidate)
+
+      return candidate
+    } finally {
+      release()
+    }
+  }
+
+  /** @private */
+  _releaseNonce (nonce) {
+    if (nonce !== undefined && nonce !== null) this._reservedNonces.delete(nonce)
+  }
+
+  /** @private */
+  _maybeReleaseNonceOnRejection (error, nonce) {
+    if (WalletAccountEvmErc4337._isPreAcceptanceError(error)) {
+      this._releaseNonce(nonce)
+    }
+  }
+
+  /** @private */
+  static _isPreAcceptanceError (error) {
+    if (error instanceof AbstractionKitError) {
+      const message = `${error.message ?? ''} ${error.cause?.message ?? ''}`.toLowerCase()
+      return [
+        'aa10', 'aa13', 'aa14', 'aa21', 'aa22', 'aa23', 'aa24', 'aa25', 'aa26',
+        'aa31', 'aa32', 'aa33', 'aa34', 'aa40', 'aa41', 'aa50', 'aa51',
+        'nonce', 'already known', 'replacement underpriced', 'underpriced',
+        'fee too low', 'sender already constructed'
+      ].some(marker => message.includes(marker))
+    }
+    return typeof error?.message === 'string' && error.message.includes('Not enough funds')
   }
 
   /** @private */
