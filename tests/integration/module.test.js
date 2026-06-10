@@ -755,4 +755,51 @@ describe('@wdk/wallet-evm-erc-4337', () => {
       expect(signedUserOp.maxPriorityFeePerGas).toBe(OVERRIDES.maxPriorityFeePerGas)
     }
   }, TIMEOUT)
+
+  test('should propagate gas overrides through quoteTransfer / transfer / approve', async () => {
+    const account0 = await wallet.getAccountByPath("0'/0/0")
+    account0._quoteCache.clear()
+
+    const OVERRIDES = {
+      callGasLimit: 250000n,
+      verificationGasLimit: 150000n,
+      preVerificationGas: 50000n,
+      maxFeePerGas: 2_000_000_000n,
+      maxPriorityFeePerGas: 1_500_000_000n
+    }
+
+    const assertTxHasOverrides = (tx) => {
+      expect(tx.callGasLimit).toBe(OVERRIDES.callGasLimit)
+      expect(tx.verificationGasLimit).toBe(OVERRIDES.verificationGasLimit)
+      expect(tx.preVerificationGas).toBe(OVERRIDES.preVerificationGas)
+      expect(tx.maxFeePerGas).toBe(OVERRIDES.maxFeePerGas)
+      expect(tx.maxPriorityFeePerGas).toBe(OVERRIDES.maxPriorityFeePerGas)
+    }
+
+    const quoteSpy = jest.spyOn(account0, 'quoteSendTransaction')
+
+    await account0.quoteTransfer(
+      { token: testToken.target, recipient: ACCOUNT1.safeAddress, amount: 1n },
+      undefined,
+      OVERRIDES
+    )
+    assertTxHasOverrides(quoteSpy.mock.calls[quoteSpy.mock.calls.length - 1][0])
+
+    const transferRes = await account0.transfer(
+      { token: testToken.target, recipient: ACCOUNT1.safeAddress, amount: 2n },
+      undefined,
+      OVERRIDES
+    )
+    await waitForTx(transferRes.hash, account0)
+    assertTxHasOverrides(quoteSpy.mock.calls[quoteSpy.mock.calls.length - 1][0])
+
+    const approveRes = await account0.approve(
+      { token: testToken.target, spender: ACCOUNT1.safeAddress, amount: 1n },
+      OVERRIDES
+    )
+    await waitForTx(approveRes.hash, account0)
+    assertTxHasOverrides(quoteSpy.mock.calls[quoteSpy.mock.calls.length - 1][0])
+
+    quoteSpy.mockRestore()
+  }, TIMEOUT)
 })
