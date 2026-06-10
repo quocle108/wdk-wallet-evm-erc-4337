@@ -173,10 +173,11 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * Approves a specific amount of tokens to a spender.
    *
    * @param {ApproveOptions} options - The approve options.
+   * @param {EvmErc4337GasOverrides} [txOverrides] - If set, applies these UserOperationV7 gas/fee overrides to the underlying transaction.
    * @returns {Promise<TransactionResult>} - The transaction's result.
    * @throws {Error} - If trying to approve usdts on ethereum with allowance not equal to zero (due to the usdt allowance reset requirement).
    */
-  async approve (options) {
+  async approve (options, txOverrides) {
     if (!this._ownerAccount._provider) {
       throw new Error('The wallet must be connected to a provider to approve funds.')
     }
@@ -199,7 +200,8 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     const tx = {
       to: token,
       value: 0,
-      data: contract.interface.encodeFunctionData('approve', [spender, amount])
+      data: contract.interface.encodeFunctionData('approve', [spender, amount]),
+      ...txOverrides
     }
 
     return await this.sendTransaction(tx)
@@ -282,9 +284,10 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    *
    * @param {TransferOptions} options - The transfer's options.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
+   * @param {EvmErc4337GasOverrides} [txOverrides] - If set, applies these UserOperationV7 gas/fee overrides to the underlying transaction.
    * @returns {Promise<TransferResult>} The transfer's result.
    */
-  async transfer (options, config) {
+  async transfer (options, config, txOverrides) {
     const mergedConfig = { ...this._config, ...config }
 
     if (config) {
@@ -293,7 +296,8 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const { isSponsored, transferMaxFee } = mergedConfig
 
-    const tx = await WalletAccountEvm._getTransferTransaction(options)
+    const baseTx = await WalletAccountEvm._getTransferTransaction(options)
+    const tx = { ...baseTx, ...txOverrides }
 
     const txs = [tx]
     const prepared = await this._prepareForSend(tx, txs, mergedConfig)
