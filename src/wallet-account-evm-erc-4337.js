@@ -53,7 +53,26 @@ import WalletAccountReadOnlyEvmErc4337, { FEE_TOLERANCE_COEFFICIENT } from './wa
 
 const QUOTE_MAX_AGE_MS = 2 * 60 * 1_000
 
+const NONCE_READ_TIMEOUT_MS = 30 * 1_000
+
 const USDT_MAINNET_ADDRESS = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
+
+/**
+ * Races a promise against a timeout, rejecting if it does not settle in time.
+ * The timer is always cleared so a pending timeout never keeps the event loop alive.
+ *
+ * @template T
+ * @param {Promise<T>} promise - The promise to bound.
+ * @param {number} ms - The timeout in milliseconds.
+ * @returns {Promise<T>} The promise's result, or a rejection if it times out.
+ */
+const withTimeout = (promise, ms) => {
+  let timer
+  const timeout = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error('Timed out reading the on-chain account nonce.')), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
 
 /** @implements {IWalletAccount} */
 export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc4337 {
@@ -391,7 +410,10 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     try {
       await prev
-      const onChainNonce = await fetchAccountNonce(this._provider, ENTRYPOINT_V7, this._address)
+      const onChainNonce = await withTimeout(
+        fetchAccountNonce(this._provider, ENTRYPOINT_V7, this._address),
+        NONCE_READ_TIMEOUT_MS
+      )
 
       for (const reserved of this._reservedNonces) {
         if (reserved < onChainNonce) this._reservedNonces.delete(reserved)
