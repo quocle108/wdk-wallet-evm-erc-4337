@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeAll, beforeEach, afterEach, afterAll, jest } from '@jest/globals'
 import WalletManagerEvmErc4337 from '../../index.js'
 import { ethers } from 'ethers'
+import { fetchAccountNonce } from 'abstractionkit'
 import { alto } from 'prool/instances'
 import { paymaster } from '@pimlico/mock-paymaster'
 import { MOCK_PAYMASTER_TOKEN_ADDRESS, mintMockTokens } from '../helpers/mock-paymaster-token.js'
@@ -768,6 +769,8 @@ describe('@wdk/wallet-evm-erc-4337', () => {
     const TX_A = { to: ACCOUNT1.safeAddress, value: 0 }
     const TX_B = { to: ACCOUNT0.safeAddress, value: 0 }
 
+    const nonceBefore = await fetchAccountNonce('http://localhost:8545', ENTRY_POINT_ADDRESS, ACCOUNT0.safeAddress)
+
     const [resA, resB] = await Promise.all([
       account0.sendTransaction(TX_A),
       account0.sendTransaction(TX_B)
@@ -781,6 +784,9 @@ describe('@wdk/wallet-evm-erc-4337', () => {
     expect(receiptA.status).toBe(1)
     expect(receiptB.status).toBe(1)
     expect(resA.hash).not.toBe(resB.hash)
+
+    const nonceAfter = await fetchAccountNonce('http://localhost:8545', ENTRY_POINT_ADDRESS, ACCOUNT0.safeAddress)
+    expect(nonceAfter).toBe(nonceBefore + 2n)
   }, TIMEOUT)
 
   test('should propagate gas overrides through quoteTransfer / transfer / approve', async () => {
