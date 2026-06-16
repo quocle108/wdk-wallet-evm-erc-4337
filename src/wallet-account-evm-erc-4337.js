@@ -159,7 +159,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     const fee = cached.fee
 
     const { isSponsored, transactionMaxFee } = mergedConfig
-    if (!isSponsored && transactionMaxFee !== undefined && fee >= transactionMaxFee) {
+    if (!isSponsored && transactionMaxFee !== undefined && fee > transactionMaxFee) {
       throw new Error('Exceeded maximum fee cost for transaction operation.')
     }
 
@@ -271,7 +271,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     const fee = cached.fee
 
     const { isSponsored, transactionMaxFee } = mergedConfig
-    if (!isSponsored && transactionMaxFee !== undefined && fee >= transactionMaxFee) {
+    if (!isSponsored && transactionMaxFee !== undefined && fee > transactionMaxFee) {
       throw new Error('Exceeded maximum fee cost for transaction operation.')
     }
 
@@ -302,7 +302,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const fee = cached.fee
 
-    if (!isSponsored && transferMaxFee !== undefined && fee >= transferMaxFee) {
+    if (!isSponsored && transferMaxFee !== undefined && fee > transferMaxFee) {
       throw new Error('Exceeded maximum fee cost for transfer operation.')
     }
 
