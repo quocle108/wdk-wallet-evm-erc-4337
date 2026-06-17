@@ -146,6 +146,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * @param {EvmErc4337Transaction} tx - The transaction to include in the user operation.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
    * @returns {Promise<UserOperationV7>} The signed user operation.
+   * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option (non-sponsored transactions only).
    */
   async signTransaction (tx, config) {
     const mergedConfig = { ...this._config, ...config }
@@ -258,6 +259,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * @param {EvmErc4337Transaction | EvmErc4337Transaction[]} tx -  The transaction, or an array of multiple transactions to send in batch.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
    * @returns {Promise<TransactionResult>} The transaction's result.
+   * @throws {Error} If the transaction's cost exceeds the maximum transaction fee option (non-sponsored transactions only).
    */
   async sendTransaction (tx, config) {
     const mergedConfig = { ...this._config, ...config }
@@ -286,6 +288,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * @param {TransferOptions} options - The transfer's options.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
    * @returns {Promise<TransferResult>} The transfer's result.
+   * @throws {Error} If the transfer's cost exceeds the maximum transfer fee option (non-sponsored transactions only).
    */
   async transfer (options, config) {
     const mergedConfig = { ...this._config, ...config }
