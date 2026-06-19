@@ -1,6 +1,7 @@
-import { describe, expect, test, beforeAll, beforeEach, afterAll, jest } from '@jest/globals'
+import { describe, expect, test, beforeAll, beforeEach, afterEach, afterAll, jest } from '@jest/globals'
 import WalletManagerEvmErc4337 from '../../index.js'
 import { ethers } from 'ethers'
+import { fetchAccountNonce } from 'abstractionkit'
 import { alto } from 'prool/instances'
 import { paymaster } from '@pimlico/mock-paymaster'
 import { MOCK_PAYMASTER_TOKEN_ADDRESS, mintMockTokens } from '../helpers/mock-paymaster-token.js'
@@ -171,6 +172,10 @@ describe('@wdk/wallet-evm-erc-4337', () => {
     await bundlerInstance.stop()
     await paymasterInstance.stop()
   }, TIMEOUT)
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
 
   test('should derive accounts with correct properties and safe addresses', async () => {
     const account0 = await wallet.getAccountByPath("0'/0/0")
@@ -557,7 +562,7 @@ describe('@wdk/wallet-evm-erc-4337', () => {
   test('should not use cached fee when sendTransaction params differ from quoted params', async () => {
     const account0 = await wallet.getAccountByPath("0'/0/0")
     account0._quoteCache.clear()
-    const quoteSpy = jest.spyOn(account0, 'quoteSendTransaction')
+    const buildSpy = jest.spyOn(account0, '_buildUserOperation')
 
     const TX_A = {
       to: ACCOUNT1.safeAddress,
@@ -570,13 +575,13 @@ describe('@wdk/wallet-evm-erc-4337', () => {
     }
 
     await account0.quoteSendTransaction(TX_A)
-    expect(quoteSpy).toHaveBeenCalledTimes(1)
+    expect(buildSpy).toHaveBeenCalledTimes(1)
 
     const { hash: hashB } = await account0.sendTransaction(TX_B)
     await waitForTx(hashB, account0)
-    expect(quoteSpy).toHaveBeenCalledTimes(2)
+    expect(buildSpy).toHaveBeenCalledTimes(2)
 
-    quoteSpy.mockRestore()
+    buildSpy.mockRestore()
   }, TIMEOUT)
 
   describe('with EIP-1193 provider', () => {
@@ -675,7 +680,7 @@ describe('@wdk/wallet-evm-erc-4337', () => {
   test('should re-quote when cached fee has expired', async () => {
     const account0 = await wallet.getAccountByPath("0'/0/0")
     account0._quoteCache.clear()
-    const quoteSpy = jest.spyOn(account0, 'quoteSendTransaction')
+    const buildSpy = jest.spyOn(account0, '_buildUserOperation')
 
     const TX = {
       to: ACCOUNT1.safeAddress,
@@ -684,16 +689,16 @@ describe('@wdk/wallet-evm-erc-4337', () => {
 
     const { fee } = await account0.quoteSendTransaction(TX)
     expect(fee).toBeGreaterThan(0n)
-    expect(quoteSpy).toHaveBeenCalledTimes(1)
+    expect(buildSpy).toHaveBeenCalledTimes(1)
 
     const txKey = account0._quoteCache.keys().next().value
     account0._quoteCache.get(txKey).createdAt = Date.now() - 3 * 60 * 1_000
 
     const { hash } = await account0.sendTransaction(TX)
     await waitForTx(hash, account0)
-    expect(quoteSpy).toHaveBeenCalledTimes(2)
+    expect(buildSpy).toHaveBeenCalledTimes(2)
 
-    quoteSpy.mockRestore()
+    buildSpy.mockRestore()
   }, TIMEOUT)
 
   test('should return 0n fee for sponsored transactions', async () => {
@@ -721,7 +726,7 @@ describe('@wdk/wallet-evm-erc-4337', () => {
   test('should re-quote a cached transfer whose nonce is stale after an intervening send', async () => {
     const account0 = await wallet.getAccountByPath("0'/0/0")
     account0._quoteCache.clear()
-    const quoteSpy = jest.spyOn(account0, 'quoteSendTransaction')
+    const buildSpy = jest.spyOn(account0, '_buildUserOperation')
 
     const TRANSFER = {
       token: testToken.target,
@@ -730,7 +735,7 @@ describe('@wdk/wallet-evm-erc-4337', () => {
     }
 
     const { fee: quotedFee } = await account0.quoteTransfer(TRANSFER)
-    expect(quoteSpy).toHaveBeenCalledTimes(1)
+    expect(buildSpy).toHaveBeenCalledTimes(1)
     expect(quotedFee).toBeGreaterThan(0n)
 
     const APPROVE_TRANSACTION = {
@@ -741,14 +746,14 @@ describe('@wdk/wallet-evm-erc-4337', () => {
 
     const { hash: approveHash } = await account0.sendTransaction(APPROVE_TRANSACTION)
     await waitForTx(approveHash, account0)
-    expect(quoteSpy).toHaveBeenCalledTimes(2)
+    expect(buildSpy).toHaveBeenCalledTimes(2)
 
     const { hash, fee: transferFee } = await account0.transfer(TRANSFER)
     await waitForTx(hash, account0)
-    expect(quoteSpy).toHaveBeenCalledTimes(3)
+    expect(buildSpy).toHaveBeenCalledTimes(3)
     expect(transferFee).toBeGreaterThan(0n)
 
-    quoteSpy.mockRestore()
+    buildSpy.mockRestore()
   }, TIMEOUT)
 
   test('should sign a user operation without broadcasting, then broadcast it manually via the bundler', async () => {
@@ -777,7 +782,7 @@ describe('@wdk/wallet-evm-erc-4337', () => {
   test('should reuse the first quote and re-quote the second once the first has mined', async () => {
     const account0 = await wallet.getAccountByPath("0'/0/0")
     account0._quoteCache.clear()
-    const quoteSpy = jest.spyOn(account0, 'quoteSendTransaction')
+    const buildSpy = jest.spyOn(account0, '_buildUserOperation')
 
     const TX_A = {
       to: ACCOUNT1.safeAddress,
@@ -792,22 +797,22 @@ describe('@wdk/wallet-evm-erc-4337', () => {
     const { fee: feeA } = await account0.quoteSendTransaction(TX_A)
     const { fee: feeB } = await account0.quoteSendTransaction(TX_B)
 
-    expect(quoteSpy).toHaveBeenCalledTimes(2)
+    expect(buildSpy).toHaveBeenCalledTimes(2)
     expect(feeB).toBeGreaterThan(0n)
 
     const { hash: hashA, fee: sentFeeA } = await account0.sendTransaction(TX_A)
 
     await waitForTx(hashA, account0)
 
-    expect(quoteSpy).toHaveBeenCalledTimes(2)
+    expect(buildSpy).toHaveBeenCalledTimes(2)
     expect(sentFeeA).toBe(feeA)
 
     const { hash: hashB, fee: sentFeeB } = await account0.sendTransaction(TX_B)
     await waitForTx(hashB, account0)
 
-    expect(quoteSpy).toHaveBeenCalledTimes(3)
+    expect(buildSpy).toHaveBeenCalledTimes(3)
     expect(sentFeeB).toBeGreaterThan(0n)
-    quoteSpy.mockRestore()
+    buildSpy.mockRestore()
   }, TIMEOUT)
 
   test('should propagate gas overrides to the final signed UserOperation across NATIVE / TOKEN / SPONSORED modes', async () => {
@@ -843,5 +848,80 @@ describe('@wdk/wallet-evm-erc-4337', () => {
       expect(signedUserOp.maxFeePerGas).toBe(OVERRIDES.maxFeePerGas)
       expect(signedUserOp.maxPriorityFeePerGas).toBe(OVERRIDES.maxPriorityFeePerGas)
     }
+  }, TIMEOUT)
+
+  test('should send two concurrent transactions with sequential nonces', async () => {
+    const account0 = await wallet.getAccountByPath("0'/0/0")
+    account0._quoteCache.clear()
+    account0._reservedNonces.clear()
+
+    const TX_A = { to: ACCOUNT1.safeAddress, value: 0 }
+    const TX_B = { to: ACCOUNT0.safeAddress, value: 0 }
+
+    const nonceBefore = await fetchAccountNonce('http://localhost:8545', ENTRY_POINT_ADDRESS, ACCOUNT0.safeAddress)
+
+    const [resA, resB] = await Promise.all([
+      account0.sendTransaction(TX_A),
+      account0.sendTransaction(TX_B)
+    ])
+
+    const [receiptA, receiptB] = await Promise.all([
+      waitForTx(resA.hash, account0),
+      waitForTx(resB.hash, account0)
+    ])
+
+    expect(receiptA.status).toBe(1)
+    expect(receiptB.status).toBe(1)
+    expect(resA.hash).not.toBe(resB.hash)
+
+    const nonceAfter = await fetchAccountNonce('http://localhost:8545', ENTRY_POINT_ADDRESS, ACCOUNT0.safeAddress)
+    expect(nonceAfter).toBe(nonceBefore + 2n)
+  }, TIMEOUT)
+
+  test('should propagate gas overrides through quoteTransfer / transfer / approve', async () => {
+    const account0 = await wallet.getAccountByPath("0'/0/0")
+    account0._quoteCache.clear()
+
+    const OVERRIDES = {
+      callGasLimit: 250000n,
+      verificationGasLimit: 150000n,
+      preVerificationGas: 50000n,
+      maxFeePerGas: 2_000_000_000n,
+      maxPriorityFeePerGas: 1_500_000_000n
+    }
+
+    const assertTxHasOverrides = (tx) => {
+      expect(tx.callGasLimit).toBe(OVERRIDES.callGasLimit)
+      expect(tx.verificationGasLimit).toBe(OVERRIDES.verificationGasLimit)
+      expect(tx.preVerificationGas).toBe(OVERRIDES.preVerificationGas)
+      expect(tx.maxFeePerGas).toBe(OVERRIDES.maxFeePerGas)
+      expect(tx.maxPriorityFeePerGas).toBe(OVERRIDES.maxPriorityFeePerGas)
+    }
+
+    const buildSpy = jest.spyOn(account0, '_buildUserOperation')
+
+    await account0.quoteTransfer(
+      { token: testToken.target, recipient: ACCOUNT1.safeAddress, amount: 1n },
+      undefined,
+      OVERRIDES
+    )
+    assertTxHasOverrides(buildSpy.mock.calls[buildSpy.mock.calls.length - 1][2])
+
+    const transferRes = await account0.transfer(
+      { token: testToken.target, recipient: ACCOUNT1.safeAddress, amount: 2n },
+      undefined,
+      OVERRIDES
+    )
+    await waitForTx(transferRes.hash, account0)
+    assertTxHasOverrides(buildSpy.mock.calls[buildSpy.mock.calls.length - 1][2])
+
+    const approveRes = await account0.approve(
+      { token: testToken.target, spender: ACCOUNT1.safeAddress, amount: 1n },
+      OVERRIDES
+    )
+    await waitForTx(approveRes.hash, account0)
+    assertTxHasOverrides(buildSpy.mock.calls[buildSpy.mock.calls.length - 1][2])
+
+    buildSpy.mockRestore()
   }, TIMEOUT)
 })

@@ -19,6 +19,10 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     private _ownerAccount;
     /** @private */
     private _quoteCache;
+    /** @private */
+    private _reservedNonces;
+    /** @private */
+    private _nonceLock;
     /**
      * The derivation path's index of this account.
      *
@@ -70,10 +74,11 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
      * Approves a specific amount of tokens to a spender.
      *
      * @param {ApproveOptions} options - The approve options.
+     * @param {EvmErc4337GasOverrides} [txOverrides] - If set, applies these UserOperationV7 gas/fee overrides to the underlying transaction.
      * @returns {Promise<TransactionResult>} - The transaction's result.
      * @throws {Error} - If trying to approve usdts on ethereum with allowance not equal to zero (due to the usdt allowance reset requirement).
      */
-    approve(options: ApproveOptions): Promise<TransactionResult>;
+    approve(options: ApproveOptions, txOverrides?: EvmErc4337GasOverrides): Promise<TransactionResult>;
     /**
      * Quotes the costs of a send transaction operation.
      *
@@ -110,10 +115,11 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
      *
      * @param {TransferOptions} options - The transfer's options.
      * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
+     * @param {EvmErc4337GasOverrides} [txOverrides] - If set, applies these UserOperationV7 gas/fee overrides to the underlying transaction.
      * @returns {Promise<TransferResult>} The transfer's result.
      * @throws {Error} If the transaction is not sponsored, and the transfer's cost surpasses the transfer max. fee option.
      */
-    transfer(options: TransferOptions, config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<TransferResult>;
+    transfer(options: TransferOptions, config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>, txOverrides?: EvmErc4337GasOverrides): Promise<TransferResult>;
     /**
      * Returns a read-only copy of the account.
      *
@@ -127,6 +133,18 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     /** @private */
     private _resolveQuote;
     /** @private */
+    private _prepareForSend;
+    /** @private */
+    private _buildAtNonce;
+    /** @private */
+    private _allocateNonce;
+    /** @private */
+    private _releaseNonce;
+    /** @private */
+    private _maybeReleaseNonceOnRejection;
+    /** @private */
+    private static _isPreAcceptanceError;
+    /** @private */
     private static _getTxKey;
     /** @private */
     private _consumeCachedQuote;
@@ -139,6 +157,7 @@ export type Eip1193Provider = import("ethers").Eip1193Provider;
 export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
 export type KeyPair = import("@tetherto/wdk-wallet-evm").KeyPair;
 export type EvmErc4337Transaction = import("./wallet-account-read-only-evm-erc-4337.js").EvmErc4337Transaction;
+export type EvmErc4337GasOverrides = import("./wallet-account-read-only-evm-erc-4337.js").EvmErc4337GasOverrides;
 export type TransactionResult = import("@tetherto/wdk-wallet-evm").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet-evm").TransferOptions;
 export type TransferResult = import("@tetherto/wdk-wallet-evm").TransferResult;

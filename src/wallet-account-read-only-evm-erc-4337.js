@@ -335,12 +335,14 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
    *
    * @param {TransferOptions} options - The transfer's options.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
+   * @param {EvmErc4337GasOverrides} [txOverrides] - If set, applies these UserOperationV7 gas/fee overrides to the underlying transaction.
    * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
    * @throws {ConfigurationError} If the override `config` is invalid or has missing required fields.
    * @throws {Error} If the token paymaster reports AA50 (account does not hold the paymaster token).
    */
-  async quoteTransfer (options, config) {
-    const tx = await WalletAccountReadOnlyEvm._getTransferTransaction(options)
+  async quoteTransfer (options, config, txOverrides) {
+    const baseTx = await WalletAccountReadOnlyEvm._getTransferTransaction(options)
+    const tx = { ...baseTx, ...txOverrides }
 
     const result = await this.quoteSendTransaction(tx, config)
 
