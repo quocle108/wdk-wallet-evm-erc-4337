@@ -306,7 +306,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     if (!isSponsored && transactionMaxFee !== undefined && prepared.fee > transactionMaxFee) {
       throw new Error('Exceeded maximum fee cost for transaction operation.')
     }
-    
+
     try {
       const hash = await this._sendUserOperation(txs, { config: mergedConfig, cachedBuild: prepared })
       return { hash, fee: prepared.fee }
