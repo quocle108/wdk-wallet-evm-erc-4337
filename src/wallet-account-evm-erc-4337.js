@@ -168,9 +168,12 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
   /**
    * Signs a user operation built from the given transaction.
    *
+   * If the transaction is not sponsored, it also estimates the transaction's costs and checks them against the transaction max. fee option.
+   *
    * @param {EvmErc4337Transaction} tx - The transaction to include in the user operation.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
    * @returns {Promise<UserOperationV7>} The signed user operation.
+   * @throws {Error} If the transaction is not sponsored, and the transaction's cost surpasses the transaction max. fee option.
    */
   async signTransaction (tx, config) {
     const mergedConfig = { ...this._config, ...config }
@@ -180,6 +183,13 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     }
 
     const cached = await this._resolveQuote(tx, config)
+
+    const fee = cached.fee
+
+    const { isSponsored, transactionMaxFee } = mergedConfig
+    if (!isSponsored && transactionMaxFee !== undefined && fee > transactionMaxFee) {
+      throw new Error('Exceeded maximum fee cost for transaction operation.')
+    }
 
     const { userOp } = await this._signUserOperation([tx], { config: mergedConfig, cachedBuild: cached })
 
@@ -275,9 +285,12 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * In a batched call (`tx` passed as `[tx1, tx2, ...]`), only the gas overrides on `tx1` are
    * honored — a UserOperation has a single set of gas fields regardless of how many calls it batches.
    *
+   * If the transaction is not sponsored, it also estimates the transaction's costs and checks them against the transaction max. fee option.
+   *
    * @param {EvmErc4337Transaction | EvmErc4337Transaction[]} tx -  The transaction, or an array of multiple transactions to send in batch.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
    * @returns {Promise<TransactionResult>} The transaction's result.
+   * @throws {Error} If the transaction is not sponsored, and the transaction's cost surpasses the transaction max. fee option.
    */
   async sendTransaction (tx, config) {
     const mergedConfig = { ...this._config, ...config }
@@ -288,6 +301,12 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const txs = [tx].flat()
     const prepared = await this._prepareForSend(tx, txs, mergedConfig)
+
+    const { isSponsored, transactionMaxFee } = mergedConfig
+    if (!isSponsored && transactionMaxFee !== undefined && prepared.fee > transactionMaxFee) {
+      this._releaseNonce(prepared.userOp?.nonce)
+      throw new Error('Exceeded maximum fee cost for transaction operation.')
+    }
 
     try {
       const hash = await this._sendUserOperation(txs, { config: mergedConfig, cachedBuild: prepared })
@@ -301,10 +320,13 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
   /**
    * Transfers a token to another address.
    *
+   * If the transaction is not sponsored, it also estimates the transfer's costs and checks them against the transfer max. fee option.
+   *
    * @param {TransferOptions} options - The transfer's options.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
    * @param {EvmErc4337GasOverrides} [txOverrides] - If set, applies these UserOperationV7 gas/fee overrides to the underlying transaction.
    * @returns {Promise<TransferResult>} The transfer's result.
+   * @throws {Error} If the transaction is not sponsored, and the transfer's cost surpasses the transfer max. fee option.
    */
   async transfer (options, config, txOverrides) {
     const mergedConfig = { ...this._config, ...config }
