@@ -304,6 +304,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const { isSponsored, transactionMaxFee } = mergedConfig
     if (!isSponsored && transactionMaxFee !== undefined && prepared.fee > transactionMaxFee) {
+      this._releaseNonce(prepared.userOp?.nonce)
       throw new Error('Exceeded maximum fee cost for transaction operation.')
     }
 
