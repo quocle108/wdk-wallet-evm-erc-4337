@@ -246,7 +246,11 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * In a batched call (`tx` passed as `[tx1, tx2, ...]`), only the gas overrides on `tx1` are
    * honored — a UserOperation has a single set of gas fields regardless of how many calls it batches.
    *
-   * @param {EvmErc4337Transaction | EvmErc4337Transaction[]} tx - The transaction, or an array of multiple transactions to send in batch.
+   * An already-signed UserOperation (as returned by `signTransaction`) may also be passed; in that case
+   * its fee is read from its own gas fields (in token-paymaster mode this reflects the native gas ceiling,
+   * not the token amount).
+   *
+   * @param {EvmErc4337Transaction | EvmErc4337Transaction[] | UserOperationV7} tx - The transaction, an array of multiple transactions to send in batch, or an already-signed UserOperation.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
@@ -255,6 +259,10 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     if (config) {
       this._validateConfig(mergedConfig)
+    }
+
+    if (WalletAccountReadOnlyEvmErc4337._isSignedUserOperation(tx)) {
+      return { fee: mergedConfig.isSponsored ? 0n : WalletAccountReadOnlyEvmErc4337._getSignedUserOperationFee(tx) }
     }
 
     const txKey = WalletAccountEvmErc4337._getTxKey(tx)
@@ -287,7 +295,11 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    *
    * If the transaction is not sponsored, it also estimates the transaction's costs and checks them against the transaction max. fee option.
    *
-   * @param {EvmErc4337Transaction | EvmErc4337Transaction[]} tx -  The transaction, or an array of multiple transactions to send in batch.
+   * An already-signed UserOperation (as returned by `signTransaction`) may also be passed; in that case it is
+   * broadcast directly to the bundler, reusing the nonce baked in at sign time. The max-fee check is skipped
+   * (it was already enforced during `signTransaction`).
+   *
+   * @param {EvmErc4337Transaction | EvmErc4337Transaction[] | UserOperationV7} tx -  The transaction, an array of multiple transactions to send in batch, or an already-signed UserOperation.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
    * @returns {Promise<TransactionResult>} The transaction's result.
    * @throws {Error} If the transaction is not sponsored, and the transaction's cost surpasses the transaction max. fee option.
@@ -297,6 +309,14 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     if (config) {
       this._validateConfig(mergedConfig)
+    }
+
+    if (WalletAccountReadOnlyEvmErc4337._isSignedUserOperation(tx)) {
+      const fee = mergedConfig.isSponsored ? 0n : WalletAccountReadOnlyEvmErc4337._getSignedUserOperationFee(tx)
+
+      const hash = await this._broadcastSignedUserOperation(tx)
+
+      return { hash, fee }
     }
 
     const txs = [tx].flat()
@@ -529,6 +549,24 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
       const { userOp, smartAccount } = await this._signUserOperation(txs, { config, cachedBuild })
 
       return await this._getBundler().sendUserOperation(userOp, smartAccount.entrypointAddress)
+    } catch (err) {
+      if (err instanceof AbstractionKitError && err.message.includes('AA50')) {
+        throw new Error('Not enough funds on the safe account to repay the paymaster.')
+      }
+      throw err
+    }
+  }
+
+  /**
+   * Broadcasts an already-signed UserOperation directly to the bundler.
+   *
+   * @private
+   * @param {UserOperationV7} userOp - The signed UserOperation.
+   * @returns {Promise<string>} The user operation hash.
+   */
+  async _broadcastSignedUserOperation (userOp) {
+    try {
+      return await this._getBundler().sendUserOperation(userOp, ENTRYPOINT_V7)
     } catch (err) {
       if (err instanceof AbstractionKitError && err.message.includes('AA50')) {
         throw new Error('Not enough funds on the safe account to repay the paymaster.')
