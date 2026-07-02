@@ -34,7 +34,7 @@
     "@tetherto/wdk-wallet-evm": "1.0.0-beta.14",
     "abstractionkit": "0.4.0",
     "bare-node-runtime": "^1.4.0",
-    "ethers": "6.16.0"
+    "ethers": "6.17.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "3.1.0",
