@@ -74,7 +74,7 @@ const withTimeout = (promise, ms) => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
-/** @implements {IWalletAccount} */
+/** @implements {IWalletAccount<UserOperationV7>} */
 export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc4337 {
   /**
    * Creates a new evm [erc-4337](https://www.erc4337.io/docs) wallet account.
