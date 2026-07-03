@@ -155,7 +155,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     private _broadcastSignedUserOperation;
 }
 export type Eip1193Provider = import("ethers").Eip1193Provider;
-export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
+export type IWalletAccount<TSignedTransaction> = import("@tetherto/wdk-wallet").IWalletAccount<TSignedTransaction>;
 export type KeyPair = import("@tetherto/wdk-wallet-evm").KeyPair;
 export type EvmErc4337Transaction = import("./wallet-account-read-only-evm-erc-4337.js").EvmErc4337Transaction;
 export type EvmErc4337GasOverrides = import("./wallet-account-read-only-evm-erc-4337.js").EvmErc4337GasOverrides;
