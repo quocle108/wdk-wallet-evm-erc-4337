@@ -512,7 +512,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     const signer = {
       address: this._ownerAccountAddress,
-      signHash: async (hash) => this._ownerAccount._account.signingKey.sign(hash).serialized
+      signHash: async (hash) => this._ownerAccount._signer._account.signingKey.sign(hash).serialized
     }
     userOp.signature = await smartAccount.signUserOperationWithSigners(
       userOp,
