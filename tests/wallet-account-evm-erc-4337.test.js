@@ -1,0 +1,494 @@
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import * as bip39 from 'bip39'
+import { Contract } from 'ethers'
+
+const actualWalletEvm = await import('@tetherto/wdk-wallet-evm')
+const actualAk = await import('abstractionkit')
+
+const getAllowanceMock = jest.fn()
+
+const WalletAccountReadOnlyEvmMock = jest.fn().mockImplementation(() => ({
+  getAllowance: getAllowanceMock
+}))
+
+Object.defineProperties(WalletAccountReadOnlyEvmMock, Object.getOwnPropertyDescriptors(actualWalletEvm.WalletAccountReadOnlyEvm))
+
+jest.unstable_mockModule('@tetherto/wdk-wallet-evm', () => ({
+  ...actualWalletEvm,
+  WalletAccountReadOnlyEvm: WalletAccountReadOnlyEvmMock
+}))
+
+const createAccountAddressMock = jest.fn()
+const isDeployedMock = jest.fn()
+const createUserOperationMock = jest.fn()
+const signUserOperationWithSignersMock = jest.fn()
+const sendUserOperationMock = jest.fn()
+const getUserOperationReceiptMock = jest.fn()
+const getUserOperationByHashMock = jest.fn()
+const createPaymasterUserOperationMock = jest.fn()
+const sendRPCRequestMock = jest.fn()
+const fetchAccountNonceMock = jest.fn()
+const calculateUserOperationMaxGasCostMock = jest.fn()
+
+const SafeAccountMock = jest.fn().mockImplementation((address) => ({
+  accountAddress: address,
+  entrypointAddress: actualAk.ENTRYPOINT_V7,
+  createUserOperation: createUserOperationMock,
+  signUserOperationWithSigners: signUserOperationWithSignersMock
+}))
+SafeAccountMock.createAccountAddress = createAccountAddressMock
+SafeAccountMock.isDeployed = isDeployedMock
+
+const BundlerMock = jest.fn().mockImplementation(() => ({
+  sendUserOperation: sendUserOperationMock,
+  getUserOperationReceipt: getUserOperationReceiptMock,
+  getUserOperationByHash: getUserOperationByHashMock
+}))
+
+const Erc7677PaymasterMock = jest.fn().mockImplementation(() => ({
+  createPaymasterUserOperation: createPaymasterUserOperationMock,
+  sendRPCRequest: sendRPCRequestMock
+}))
+Erc7677PaymasterMock.detectProvider = actualAk.Erc7677Paymaster.detectProvider
+
+jest.unstable_mockModule('abstractionkit', () => ({
+  ...actualAk,
+  SafeAccountV0_3_0: SafeAccountMock,
+  Bundler: BundlerMock,
+  Erc7677Paymaster: Erc7677PaymasterMock,
+  fetchAccountNonce: fetchAccountNonceMock,
+  calculateUserOperationMaxGasCost: calculateUserOperationMaxGasCostMock
+}))
+
+const { WalletAccountEvmErc4337, WalletAccountReadOnlyEvmErc4337, ConfigurationError } = await import('../index.js')
+
+const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
+const INVALID_SEED_PHRASE = 'invalid seed phrase'
+const SEED = bip39.mnemonicToSeedSync(SEED_PHRASE)
+
+const ACCOUNT = {
+  index: 0,
+  path: "m/44'/60'/0'/0/0",
+  address: '0x405005C7c4422390F4B334F64Cf20E0b767131d0',
+  keyPair: {
+    privateKey: '260905feebf1ec684f36f1599128b85f3a26c2b817f2065a2fc278398449c41f',
+    publicKey: '036c082582225926b9356d95b91a4acffa3511b7cc2a14ef5338c090ea2cc3d0aa'
+  }
+}
+
+const SAFE_ADDRESS = '0x120Ac3c0B46fBAf2e8452A23BD61a2Da9B139551'
+
+const USDT_MAINNET_ADDRESS = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
+
+const DUMMY_USER_OP_HASH = '0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1'
+const DUMMY_OP_SIGNATURE = '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef1c'
+
+const DUMMY_USER_OP = {
+  sender: SAFE_ADDRESS,
+  nonce: 0n,
+  callData: '0x',
+  callGasLimit: 50_000n,
+  verificationGasLimit: 100_000n,
+  preVerificationGas: 30_000n,
+  maxFeePerGas: 10_000_000_000n,
+  maxPriorityFeePerGas: 1_000_000_000n,
+  signature: '0x'
+}
+
+const EIP1193_PROVIDER = {
+  request: jest.fn(async ({ method }) => {
+    if (method === 'eth_chainId') return '0x1'
+    return null
+  })
+}
+
+const SPONSORED_CONFIG = {
+  provider: EIP1193_PROVIDER,
+  bundlerUrl: 'https://dummy-bundler.url/',
+  paymasterUrl: 'https://dummy-paymaster.url/',
+  safeModulesVersion: '0.3.0',
+  isSponsored: true
+}
+
+const PAYMASTER_TOKEN_CONFIG = {
+  provider: EIP1193_PROVIDER,
+  bundlerUrl: 'https://dummy-bundler.url/',
+  paymasterUrl: 'https://dummy-paymaster.url/',
+  paymasterAddress: '0x888888888888Ec68A58AB8094Cc1AD20Ba3D2402',
+  paymasterToken: { address: USDT_MAINNET_ADDRESS },
+  safeModulesVersion: '0.3.0'
+}
+
+const toHex = (bytes) => Buffer.from(bytes).toString('hex')
+
+describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
+  describe('WalletAccountEvmErc4337', () => {
+    let account
+
+    beforeEach(() => {
+      jest.clearAllMocks()
+
+      createAccountAddressMock.mockReturnValue(SAFE_ADDRESS)
+      isDeployedMock.mockResolvedValue(true)
+      createUserOperationMock.mockResolvedValue({ ...DUMMY_USER_OP })
+      createPaymasterUserOperationMock.mockResolvedValue({ userOperation: { ...DUMMY_USER_OP } })
+      signUserOperationWithSignersMock.mockResolvedValue(DUMMY_OP_SIGNATURE)
+      sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
+      fetchAccountNonceMock.mockResolvedValue(0n)
+      calculateUserOperationMaxGasCostMock.mockReturnValue(1_000_000n)
+
+      account = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", SPONSORED_CONFIG)
+    })
+
+    afterEach(() => {
+      account.dispose()
+    })
+
+    describe('constructor', () => {
+      test('should successfully initialize an account for the given seed phrase and path', () => {
+        expect(account.index).toBe(ACCOUNT.index)
+        expect(account.path).toBe(ACCOUNT.path)
+        expect(toHex(account.keyPair.privateKey)).toBe(ACCOUNT.keyPair.privateKey)
+        expect(toHex(account.keyPair.publicKey)).toBe(ACCOUNT.keyPair.publicKey)
+      })
+
+      test('should successfully initialize an account for the given seed and path', () => {
+        const acc = new WalletAccountEvmErc4337(SEED, "0'/0/0", SPONSORED_CONFIG)
+
+        expect(acc.index).toBe(ACCOUNT.index)
+        expect(acc.path).toBe(ACCOUNT.path)
+        expect(toHex(acc.keyPair.privateKey)).toBe(ACCOUNT.keyPair.privateKey)
+        expect(toHex(acc.keyPair.publicKey)).toBe(ACCOUNT.keyPair.publicKey)
+      })
+
+      test('should derive the safe address from the owner address', async () => {
+        expect(await account.getAddress()).toBe(SAFE_ADDRESS)
+        expect(createAccountAddressMock).toHaveBeenCalledWith(
+          [ACCOUNT.address],
+          expect.objectContaining({ entrypointAddress: actualAk.ENTRYPOINT_V7 })
+        )
+      })
+
+      test('should throw if the seed phrase is invalid', () => {
+        expect(() => { new WalletAccountEvmErc4337(INVALID_SEED_PHRASE, "0'/0/0", SPONSORED_CONFIG) })
+          .toThrow('The seed phrase is invalid.')
+      })
+
+      test('should throw if the path is invalid', () => {
+        expect(() => { new WalletAccountEvmErc4337(SEED_PHRASE, "a'/b/c", SPONSORED_CONFIG) })
+          .toThrow('invalid path component')
+      })
+
+      test('should throw if the safe modules version is not supported', () => {
+        expect(() => new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", { ...SPONSORED_CONFIG, safeModulesVersion: '0.2.0' }))
+          .toThrow(new ConfigurationError('Unsupported safe modules version: 0.2.0'))
+      })
+    })
+
+    describe('sign', () => {
+      const MESSAGE = 'Dummy message to sign.'
+      const EXPECTED_SIGNATURE = '0xd130f94c52bf393206267278ac0b6009e14f11712578e5c1f7afe4a12685c5b96a77a0832692d96fc51f4bd403839572c55042ecbcc92d215879c5c8bb5778c51c'
+
+      test('should return the correct signature', async () => {
+        const signature = await account.sign(MESSAGE)
+
+        expect(signature).toBe(EXPECTED_SIGNATURE)
+      })
+    })
+
+    describe('signTypedData', () => {
+      const TYPED_DATA = {
+        domain: {
+          name: 'TestApp',
+          version: '1',
+          chainId: 1,
+          verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC'
+        },
+        types: {
+          Person: [
+            { name: 'name', type: 'string' },
+            { name: 'wallet', type: 'address' }
+          ]
+        },
+        message: {
+          name: 'Alice',
+          wallet: '0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826'
+        }
+      }
+
+      const EXPECTED_TYPED_DATA_SIGNATURE = '0x1b319d2006b194b044eaff941404d39b8532de6c9a689dfa6cb03ca56fade1451ff857ea3c473cc66853e2f287a2c0ed4b7cc26de17e8b9145972c750514ac101c'
+
+      test('should return the correct signature', async () => {
+        const signature = await account.signTypedData(TYPED_DATA)
+
+        expect(signature).toBe(EXPECTED_TYPED_DATA_SIGNATURE)
+      })
+    })
+
+    describe('quoteSendTransaction', () => {
+      test('should return zero fee for sponsored transactions', async () => {
+        const { fee } = await account.quoteSendTransaction({ to: ACCOUNT.address, value: 1, data: '0x' })
+
+        expect(fee).toBe(0n)
+        expect(createUserOperationMock).not.toHaveBeenCalled()
+      })
+
+      test('should return the fee in paymaster token base units with the tolerance applied', async () => {
+        createPaymasterUserOperationMock.mockResolvedValue({
+          userOperation: { ...DUMMY_USER_OP },
+          tokenQuote: { tokenCost: 500_000n }
+        })
+
+        const pmAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", PAYMASTER_TOKEN_CONFIG)
+
+        const { fee } = await pmAccount.quoteSendTransaction({ to: ACCOUNT.address, value: 1, data: '0x' })
+
+        expect(fee).toBe(600_000n)
+        expect(createPaymasterUserOperationMock).toHaveBeenCalledWith(
+          expect.any(Object),
+          expect.any(Object),
+          PAYMASTER_TOKEN_CONFIG.bundlerUrl,
+          { token: USDT_MAINNET_ADDRESS },
+          { entrypoint: actualAk.ENTRYPOINT_V7 }
+        )
+        expect(createPaymasterUserOperationMock).toHaveBeenCalledTimes(1)
+      })
+
+      test('should re-validate the merged config when a per-call override is provided', async () => {
+        await expect(account.quoteSendTransaction(
+          { to: ACCOUNT.address, value: 1, data: '0x' },
+          { isSponsored: false }
+        )).rejects.toThrow('Missing required paymaster token configuration fields: paymasterAddress, paymasterToken.')
+      })
+    })
+
+    describe('sendTransaction', () => {
+      const TRANSACTION = { to: ACCOUNT.address, value: 1, data: '0x' }
+
+      test('should successfully send a sponsored transaction', async () => {
+        const { hash, fee } = await account.sendTransaction(TRANSACTION)
+
+        expect(hash).toBe(DUMMY_USER_OP_HASH)
+        expect(fee).toBe(0n)
+        expect(sendUserOperationMock).toHaveBeenCalledWith(
+          { ...DUMMY_USER_OP, signature: DUMMY_OP_SIGNATURE },
+          actualAk.ENTRYPOINT_V7
+        )
+      })
+
+      test('should successfully send a non-sponsored transaction with no prior quote', async () => {
+        createPaymasterUserOperationMock.mockResolvedValue({
+          userOperation: { ...DUMMY_USER_OP },
+          tokenQuote: { tokenCost: 500_000n }
+        })
+
+        const pmAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", PAYMASTER_TOKEN_CONFIG)
+
+        const { hash, fee } = await pmAccount.sendTransaction(TRANSACTION)
+
+        expect(hash).toBe(DUMMY_USER_OP_HASH)
+        expect(fee).toBe(600_000n)
+        expect(sendUserOperationMock).toHaveBeenCalledWith(
+          { ...DUMMY_USER_OP, signature: DUMMY_OP_SIGNATURE },
+          actualAk.ENTRYPOINT_V7
+        )
+      })
+
+      test('should reuse the user operation built by a previous quote for the same transaction', async () => {
+        createPaymasterUserOperationMock.mockResolvedValue({
+          userOperation: { ...DUMMY_USER_OP },
+          tokenQuote: { tokenCost: 500_000n }
+        })
+
+        const pmAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", PAYMASTER_TOKEN_CONFIG)
+
+        const { fee: quotedFee } = await pmAccount.quoteSendTransaction(TRANSACTION)
+        const { hash, fee } = await pmAccount.sendTransaction(TRANSACTION)
+
+        expect(hash).toBe(DUMMY_USER_OP_HASH)
+        expect(fee).toBe(quotedFee)
+        expect(createUserOperationMock).toHaveBeenCalledTimes(1)
+        expect(createPaymasterUserOperationMock).toHaveBeenCalledTimes(1)
+      })
+
+      test('should throw if the fee exceeds the transaction max fee configuration', async () => {
+        createPaymasterUserOperationMock.mockResolvedValue({
+          userOperation: { ...DUMMY_USER_OP },
+          tokenQuote: { tokenCost: 500_000n }
+        })
+
+        const pmAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", {
+          ...PAYMASTER_TOKEN_CONFIG,
+          transactionMaxFee: 0n
+        })
+
+        await expect(pmAccount.sendTransaction(TRANSACTION))
+          .rejects.toThrow('Exceeded maximum fee cost for transaction operation.')
+
+        expect(sendUserOperationMock).not.toHaveBeenCalled()
+      })
+
+      test('should re-validate the merged config when a per-call override is provided', async () => {
+        await expect(account.sendTransaction(TRANSACTION, { isSponsored: false }))
+          .rejects.toThrow('Missing required paymaster token configuration fields: paymasterAddress, paymasterToken.')
+      })
+
+      test('should reframe AA50 errors from the bundler as a paymaster funds error', async () => {
+        sendUserOperationMock.mockRejectedValue(
+          new actualAk.AbstractionKitError('BUNDLER_ERROR', 'AA50: paymaster deposit too low')
+        )
+
+        await expect(account.sendTransaction(TRANSACTION))
+          .rejects.toThrow('Not enough funds on the safe account to repay the paymaster.')
+      })
+    })
+
+    describe('signTransaction', () => {
+      const TRANSACTION = { to: ACCOUNT.address, value: 1, data: '0x' }
+
+      test('should return the signed user operation without broadcasting it', async () => {
+        const userOp = await account.signTransaction(TRANSACTION)
+
+        expect(userOp).toEqual({ ...DUMMY_USER_OP, signature: DUMMY_OP_SIGNATURE })
+        expect(signUserOperationWithSignersMock).toHaveBeenCalledWith(
+          expect.objectContaining({ sender: SAFE_ADDRESS }),
+          [expect.objectContaining({ address: ACCOUNT.address })],
+          1n
+        )
+        expect(sendUserOperationMock).not.toHaveBeenCalled()
+      })
+
+      test('should throw if the fee exceeds the transaction max fee configuration', async () => {
+        createPaymasterUserOperationMock.mockResolvedValue({
+          userOperation: { ...DUMMY_USER_OP },
+          tokenQuote: { tokenCost: 500_000n }
+        })
+
+        const pmAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", {
+          ...PAYMASTER_TOKEN_CONFIG,
+          transactionMaxFee: 0n
+        })
+
+        await expect(pmAccount.signTransaction(TRANSACTION))
+          .rejects.toThrow('Exceeded maximum fee cost for transaction operation.')
+      })
+
+      test('should re-validate the merged config when a per-call override is provided', async () => {
+        await expect(account.signTransaction(TRANSACTION, { isSponsored: false }))
+          .rejects.toThrow('Missing required paymaster token configuration fields: paymasterAddress, paymasterToken.')
+      })
+    })
+
+    describe('transfer', () => {
+      const TRANSFER = {
+        token: USDT_MAINNET_ADDRESS,
+        recipient: '0xa460AEbce0d3A4BecAd8ccf9D6D4861296c503Bd',
+        amount: 100n
+      }
+
+      test('should successfully transfer tokens with the sponsored flow', async () => {
+        const abi = ['function transfer(address to, uint256 amount) returns (bool)']
+        const contract = new Contract(USDT_MAINNET_ADDRESS, abi)
+        const expectedData = contract.interface.encodeFunctionData('transfer', [TRANSFER.recipient, TRANSFER.amount])
+
+        const { hash, fee } = await account.transfer(TRANSFER)
+
+        expect(hash).toBe(DUMMY_USER_OP_HASH)
+        expect(fee).toBe(0n)
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [{ to: USDT_MAINNET_ADDRESS, value: 0n, data: expectedData }],
+          EIP1193_PROVIDER,
+          undefined,
+          { skipGasEstimation: true, nonce: 0n }
+        )
+      })
+
+      test('should throw if the fee exceeds the transfer max fee configuration', async () => {
+        createPaymasterUserOperationMock.mockResolvedValue({
+          userOperation: { ...DUMMY_USER_OP },
+          tokenQuote: { tokenCost: 500_000n }
+        })
+
+        const pmAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", {
+          ...PAYMASTER_TOKEN_CONFIG,
+          transferMaxFee: 0n
+        })
+
+        await expect(pmAccount.transfer(TRANSFER))
+          .rejects.toThrow('Exceeded maximum fee cost for transfer operation.')
+
+        expect(sendUserOperationMock).not.toHaveBeenCalled()
+      })
+
+      test('should re-validate the merged config when a per-call override is provided', async () => {
+        await expect(account.transfer(TRANSFER, { isSponsored: false }))
+          .rejects.toThrow('Missing required paymaster token configuration fields: paymasterAddress, paymasterToken.')
+      })
+    })
+
+    describe('approve', () => {
+      const SPENDER = '0xa460AEbce0d3A4BecAd8ccf9D6D4861296c503Bd'
+      const AMOUNT = 100n
+
+      test('should throw if approving non-zero USDT on mainnet when allowance is non-zero', async () => {
+        getAllowanceMock.mockResolvedValue(1n)
+
+        await expect(account.approve({ token: USDT_MAINNET_ADDRESS, spender: SPENDER, amount: AMOUNT }))
+          .rejects.toThrow('USDT requires the current allowance to be reset to 0 before setting a new non-zero value.')
+
+        expect(getAllowanceMock).toHaveBeenCalledWith(USDT_MAINNET_ADDRESS, SPENDER)
+      })
+
+      test('should successfully approve a non-zero amount for USDT on mainnet when allowance is zero', async () => {
+        getAllowanceMock.mockResolvedValue(0n)
+
+        const abi = ['function approve(address spender, uint256 amount) returns (bool)']
+        const contract = new Contract(USDT_MAINNET_ADDRESS, abi)
+        const expectedData = contract.interface.encodeFunctionData('approve', [SPENDER, AMOUNT])
+
+        const { hash, fee } = await account.approve({ token: USDT_MAINNET_ADDRESS, spender: SPENDER, amount: AMOUNT })
+
+        expect(hash).toBe(DUMMY_USER_OP_HASH)
+        expect(fee).toBe(0n)
+        expect(createUserOperationMock.mock.calls[0][0]).toEqual([
+          { to: USDT_MAINNET_ADDRESS, value: 0n, data: expectedData }
+        ])
+      })
+
+      test('should successfully approve a zero amount for USDT on mainnet when allowance is non-zero', async () => {
+        getAllowanceMock.mockResolvedValue(1n)
+
+        const abi = ['function approve(address spender, uint256 amount) returns (bool)']
+        const contract = new Contract(USDT_MAINNET_ADDRESS, abi)
+        const expectedData = contract.interface.encodeFunctionData('approve', [SPENDER, 0])
+
+        const { hash, fee } = await account.approve({ token: USDT_MAINNET_ADDRESS, spender: SPENDER, amount: 0 })
+
+        expect(hash).toBe(DUMMY_USER_OP_HASH)
+        expect(fee).toBe(0n)
+        expect(createUserOperationMock.mock.calls[0][0]).toEqual([
+          { to: USDT_MAINNET_ADDRESS, value: 0n, data: expectedData }
+        ])
+      })
+    })
+
+    describe('toReadOnlyAccount', () => {
+      test('should return a read-only copy of the account', async () => {
+        const readOnlyAccount = await account.toReadOnlyAccount()
+
+        expect(readOnlyAccount).toBeInstanceOf(WalletAccountReadOnlyEvmErc4337)
+        expect(await readOnlyAccount.getAddress()).toBe(SAFE_ADDRESS)
+      })
+    })
+
+    describe('dispose', () => {
+      test('should dispose the wallet account and erase the private key', () => {
+        const disposableAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", SPONSORED_CONFIG)
+
+        disposableAccount.dispose()
+
+        expect(disposableAccount.keyPair.privateKey).toBeNull()
+      })
+    })
+  })
+})
