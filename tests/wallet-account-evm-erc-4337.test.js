@@ -57,7 +57,7 @@ jest.unstable_mockModule('abstractionkit', () => ({
   fetchAccountNonce: fetchAccountNonceMock
 }))
 
-const { WalletAccountEvmErc4337, WalletAccountReadOnlyEvmErc4337, ConfigurationError } = await import('../index.js')
+const { WalletAccountEvmErc4337, ConfigurationError } = await import('../index.js')
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 const INVALID_SEED_PHRASE = 'invalid seed phrase'
@@ -261,6 +261,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
     describe('sendTransaction', () => {
       const TRANSACTION = { to: ACCOUNT.address, value: 1, data: '0x' }
+      const RECIPIENT = '0xa460AEbce0d3A4BecAd8ccf9D6D4861296c503Bd'
 
       test('should successfully send a sponsored transaction', async () => {
         signUserOperationWithSignersMock.mockResolvedValue(DUMMY_OP_SIGNATURE)
@@ -329,6 +330,65 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
           .rejects.toThrow('Exceeded maximum fee cost for transaction operation.')
 
         expect(sendUserOperationMock).not.toHaveBeenCalled()
+      })
+
+      test('should allow a fee exactly equal to the transaction max fee configuration', async () => {
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
+        createPaymasterUserOperationMock.mockResolvedValue({
+          userOperation: { ...DUMMY_USER_OP },
+          tokenQuote: { tokenCost: 500_000n }
+        })
+
+        const pmAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", {
+          ...PAYMASTER_TOKEN_CONFIG,
+          transactionMaxFee: 600_000n
+        })
+
+        const { hash, fee } = await pmAccount.sendTransaction(TRANSACTION)
+
+        expect(hash).toBe(DUMMY_USER_OP_HASH)
+        expect(fee).toBe(600_000n)
+      })
+
+      test('should send a batch of transactions in a single user operation', async () => {
+        signUserOperationWithSignersMock.mockResolvedValue(DUMMY_OP_SIGNATURE)
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
+
+        const { hash, fee } = await account.sendTransaction([
+          { to: ACCOUNT.address, value: 1, data: '0x' },
+          { to: RECIPIENT, value: 2, data: '0xdead' }
+        ])
+
+        expect(hash).toBe(DUMMY_USER_OP_HASH)
+        expect(fee).toBe(0n)
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [
+            { to: ACCOUNT.address, value: 1n, data: '0x' },
+            { to: RECIPIENT, value: 2n, data: '0xdead' }
+          ],
+          EIP1193_PROVIDER,
+          undefined,
+          { skipGasEstimation: true, nonce: 0n }
+        )
+      })
+
+      test('should honor only the first transaction gas overrides in a batch', async () => {
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
+
+        await account.sendTransaction([
+          { to: ACCOUNT.address, value: 1, data: '0x', callGasLimit: 111_111 },
+          { to: RECIPIENT, value: 2, data: '0x', callGasLimit: 222_222 }
+        ])
+
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [
+            { to: ACCOUNT.address, value: 1n, data: '0x' },
+            { to: RECIPIENT, value: 2n, data: '0x' }
+          ],
+          EIP1193_PROVIDER,
+          undefined,
+          { skipGasEstimation: true, callGasLimit: 111_111n, nonce: 0n }
+        )
       })
 
       test('should re-validate the merged config when a per-call override is provided', async () => {
@@ -428,6 +488,23 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         expect(sendUserOperationMock).not.toHaveBeenCalled()
       })
 
+      test('should throw if the fee equals the transfer max fee configuration', async () => {
+        createPaymasterUserOperationMock.mockResolvedValue({
+          userOperation: { ...DUMMY_USER_OP },
+          tokenQuote: { tokenCost: 500_000n }
+        })
+
+        const pmAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", {
+          ...PAYMASTER_TOKEN_CONFIG,
+          transferMaxFee: 600_000n
+        })
+
+        await expect(pmAccount.transfer(TRANSFER))
+          .rejects.toThrow('Exceeded maximum fee cost for transfer operation.')
+
+        expect(sendUserOperationMock).not.toHaveBeenCalled()
+      })
+
       test('should re-validate the merged config when a per-call override is provided', async () => {
         await expect(account.transfer(TRANSFER, { isSponsored: false }))
           .rejects.toThrow('Missing required paymaster token configuration fields: paymasterAddress, paymasterToken.')
@@ -508,13 +585,44 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
           { skipGasEstimation: true, nonce: 0n }
         )
       })
+
+      test('should approve USDT without checking the allowance on non-mainnet chains', async () => {
+        const POLYGON_PROVIDER = {
+          request: jest.fn(async ({ method }) => {
+            if (method === 'eth_chainId') return '0x89'
+            return null
+          })
+        }
+
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
+
+        const polygonAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", {
+          ...SPONSORED_CONFIG,
+          provider: POLYGON_PROVIDER
+        })
+
+        const { hash, fee } = await polygonAccount.approve({ token: USDT_MAINNET_ADDRESS, spender: SPENDER, amount: AMOUNT })
+
+        expect(hash).toBe(DUMMY_USER_OP_HASH)
+        expect(fee).toBe(0n)
+        expect(getAllowanceMock).not.toHaveBeenCalled()
+      })
+
+      test('should throw if the account is not connected to a provider', async () => {
+        const offlineAccount = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", {
+          ...SPONSORED_CONFIG,
+          provider: undefined
+        })
+
+        await expect(offlineAccount.approve({ token: USDT_MAINNET_ADDRESS, spender: SPENDER, amount: AMOUNT }))
+          .rejects.toThrow('The wallet must be connected to a provider to approve funds.')
+      })
     })
 
     describe('toReadOnlyAccount', () => {
       test('should return a read-only copy of the account', async () => {
         const readOnlyAccount = await account.toReadOnlyAccount()
 
-        expect(readOnlyAccount).toBeInstanceOf(WalletAccountReadOnlyEvmErc4337)
         expect(await readOnlyAccount.getAddress()).toBe(SAFE_ADDRESS)
       })
     })

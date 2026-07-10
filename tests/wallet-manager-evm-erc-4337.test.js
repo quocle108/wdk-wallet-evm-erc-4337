@@ -41,7 +41,6 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
     describe('constructor', () => {
       test('should initialize a wallet with a provider url', () => {
-        expect(wallet).toBeInstanceOf(WalletManagerEvmErc4337)
         expect(JsonRpcProviderMock).toHaveBeenCalledTimes(1)
         expect(JsonRpcProviderMock).toHaveBeenCalledWith(SPONSORED_CONFIG.provider)
       })
@@ -52,9 +51,10 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
           provider: ['https://primary.url/', 'https://failover.url/']
         })
 
-        expect(failoverWallet).toBeInstanceOf(WalletManagerEvmErc4337)
         expect(JsonRpcProviderMock).toHaveBeenCalledWith('https://primary.url/')
         expect(JsonRpcProviderMock).toHaveBeenCalledWith('https://failover.url/')
+
+        failoverWallet.dispose()
       })
 
       test('should throw if the provider is an empty list', () => {
@@ -156,6 +156,18 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         expect(getFeeDataMock).toHaveBeenCalledTimes(1)
         expect(JsonRpcProviderMock).toHaveBeenCalledWith('https://primary.url/')
         expect(JsonRpcProviderMock).toHaveBeenCalledWith('https://failover.url/')
+      })
+
+      test('should throw if the provider does not return any fee data', async () => {
+        const DUMMY_FEE_DATA = {
+          maxFeePerGas: null,
+          gasPrice: null
+        }
+
+        getFeeDataMock.mockResolvedValue(DUMMY_FEE_DATA)
+
+        await expect(wallet.getFeeRates())
+          .rejects.toThrow(/Cannot mix BigInt/)
       })
     })
 

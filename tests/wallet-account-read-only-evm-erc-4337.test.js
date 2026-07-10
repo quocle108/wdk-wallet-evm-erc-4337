@@ -293,6 +293,31 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         expect(createPaymasterUserOperationMock).toHaveBeenCalledTimes(1)
       })
 
+      test('should quote a batch of transactions in a single user operation', async () => {
+        createPaymasterUserOperationMock.mockResolvedValue({
+          userOperation: { ...DUMMY_USER_OP },
+          tokenQuote: { tokenCost: 500_000n }
+        })
+
+        const pmAccount = new WalletAccountReadOnlyEvmErc4337(OWNER_ADDRESS, PAYMASTER_TOKEN_CONFIG)
+
+        const { fee } = await pmAccount.quoteSendTransaction([
+          { to: SPENDER, value: 1, data: '0x' },
+          { to: TOKEN_ADDRESS, value: 0, data: '0xdead' }
+        ])
+
+        expect(fee).toBe(600_000n)
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [
+            { to: SPENDER, value: 1n, data: '0x' },
+            { to: TOKEN_ADDRESS, value: 0n, data: '0xdead' }
+          ],
+          EIP1193_PROVIDER,
+          undefined,
+          { skipGasEstimation: true }
+        )
+      })
+
       test('should return the fee in native coins with the tolerance applied when useNativeCoins is set', async () => {
         const nativeAccount = new WalletAccountReadOnlyEvmErc4337(OWNER_ADDRESS, NATIVE_COINS_CONFIG)
 
