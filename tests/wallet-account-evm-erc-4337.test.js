@@ -78,6 +78,13 @@ const ACCOUNT = {
 
 const SAFE_ADDRESS = '0x120Ac3c0B46fBAf2e8452A23BD61a2Da9B139551'
 
+const INIT_CODE_OVERRIDES = {
+  c2Nonce: BigInt('0x69b348339eea4ed93f9d11931c3b894c8f9d8c7663a053024b11cb7eb4e5a1f6'),
+  entrypointAddress: actualAk.ENTRYPOINT_V7,
+  safe4337ModuleAddress: '0x75cf11467937ce3F2f357CE24ffc3DBF8fD5c226',
+  safeModuleSetupAddress: '0x2dd68b007B46fBe91B9A7c3EDa5A7a1063cB5b47'
+}
+
 const USDT_MAINNET_ADDRESS = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
 
 const DUMMY_USER_OP_HASH = '0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1'
@@ -132,10 +139,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       isDeployedMock.mockResolvedValue(true)
       createUserOperationMock.mockResolvedValue({ ...DUMMY_USER_OP })
       createPaymasterUserOperationMock.mockResolvedValue({ userOperation: { ...DUMMY_USER_OP } })
-      signUserOperationWithSignersMock.mockResolvedValue(DUMMY_OP_SIGNATURE)
-      sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
       fetchAccountNonceMock.mockResolvedValue(0n)
-      calculateUserOperationMaxGasCostMock.mockReturnValue(1_000_000n)
 
       account = new WalletAccountEvmErc4337(SEED_PHRASE, "0'/0/0", SPONSORED_CONFIG)
     })
@@ -163,10 +167,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
       test('should derive the safe address from the owner address', async () => {
         expect(await account.getAddress()).toBe(SAFE_ADDRESS)
-        expect(createAccountAddressMock).toHaveBeenCalledWith(
-          [ACCOUNT.address],
-          expect.objectContaining({ entrypointAddress: actualAk.ENTRYPOINT_V7 })
-        )
+        expect(createAccountAddressMock).toHaveBeenCalledWith([ACCOUNT.address], INIT_CODE_OVERRIDES)
       })
 
       test('should throw if the seed phrase is invalid', () => {
@@ -244,9 +245,10 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         const { fee } = await pmAccount.quoteSendTransaction({ to: ACCOUNT.address, value: 1, data: '0x' })
 
         expect(fee).toBe(600_000n)
+        expect(SafeAccountMock).toHaveBeenCalledWith(SAFE_ADDRESS, INIT_CODE_OVERRIDES)
         expect(createPaymasterUserOperationMock).toHaveBeenCalledWith(
-          expect.any(Object),
-          expect.any(Object),
+          SafeAccountMock.mock.results[0].value,
+          { ...DUMMY_USER_OP },
           PAYMASTER_TOKEN_CONFIG.bundlerUrl,
           { token: USDT_MAINNET_ADDRESS },
           { entrypoint: actualAk.ENTRYPOINT_V7 }
@@ -266,6 +268,9 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       const TRANSACTION = { to: ACCOUNT.address, value: 1, data: '0x' }
 
       test('should successfully send a sponsored transaction', async () => {
+        signUserOperationWithSignersMock.mockResolvedValue(DUMMY_OP_SIGNATURE)
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
+
         const { hash, fee } = await account.sendTransaction(TRANSACTION)
 
         expect(hash).toBe(DUMMY_USER_OP_HASH)
@@ -277,6 +282,8 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       })
 
       test('should successfully send a non-sponsored transaction with no prior quote', async () => {
+        signUserOperationWithSignersMock.mockResolvedValue(DUMMY_OP_SIGNATURE)
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
         createPaymasterUserOperationMock.mockResolvedValue({
           userOperation: { ...DUMMY_USER_OP },
           tokenQuote: { tokenCost: 500_000n }
@@ -295,6 +302,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       })
 
       test('should reuse the user operation built by a previous quote for the same transaction', async () => {
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
         createPaymasterUserOperationMock.mockResolvedValue({
           userOperation: { ...DUMMY_USER_OP },
           tokenQuote: { tokenCost: 500_000n }
@@ -347,12 +355,15 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       const TRANSACTION = { to: ACCOUNT.address, value: 1, data: '0x' }
 
       test('should return the signed user operation without broadcasting it', async () => {
+        signUserOperationWithSignersMock.mockResolvedValue(DUMMY_OP_SIGNATURE)
+
         const userOp = await account.signTransaction(TRANSACTION)
 
         expect(userOp).toEqual({ ...DUMMY_USER_OP, signature: DUMMY_OP_SIGNATURE })
+        // The user operation is signed in place, so the recorded argument carries the signature assigned after the call.
         expect(signUserOperationWithSignersMock).toHaveBeenCalledWith(
-          expect.objectContaining({ sender: SAFE_ADDRESS }),
-          [expect.objectContaining({ address: ACCOUNT.address })],
+          { ...DUMMY_USER_OP, signature: DUMMY_OP_SIGNATURE },
+          [{ address: ACCOUNT.address, signHash: expect.any(Function) }],
           1n
         )
         expect(sendUserOperationMock).not.toHaveBeenCalled()
@@ -387,6 +398,8 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       }
 
       test('should successfully transfer tokens with the sponsored flow', async () => {
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
+
         const abi = ['function transfer(address to, uint256 amount) returns (bool)']
         const contract = new Contract(USDT_MAINNET_ADDRESS, abi)
         const expectedData = contract.interface.encodeFunctionData('transfer', [TRANSFER.recipient, TRANSFER.amount])
@@ -441,6 +454,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
       test('should successfully approve a non-zero amount for USDT on mainnet when allowance is zero', async () => {
         getAllowanceMock.mockResolvedValue(0n)
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
 
         const abi = ['function approve(address spender, uint256 amount) returns (bool)']
         const contract = new Contract(USDT_MAINNET_ADDRESS, abi)
@@ -450,13 +464,17 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
         expect(hash).toBe(DUMMY_USER_OP_HASH)
         expect(fee).toBe(0n)
-        expect(createUserOperationMock.mock.calls[0][0]).toEqual([
-          { to: USDT_MAINNET_ADDRESS, value: 0n, data: expectedData }
-        ])
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [{ to: USDT_MAINNET_ADDRESS, value: 0n, data: expectedData }],
+          EIP1193_PROVIDER,
+          undefined,
+          { skipGasEstimation: true, nonce: 0n }
+        )
       })
 
       test('should successfully approve a zero amount for USDT on mainnet when allowance is non-zero', async () => {
         getAllowanceMock.mockResolvedValue(1n)
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
 
         const abi = ['function approve(address spender, uint256 amount) returns (bool)']
         const contract = new Contract(USDT_MAINNET_ADDRESS, abi)
@@ -466,9 +484,34 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
         expect(hash).toBe(DUMMY_USER_OP_HASH)
         expect(fee).toBe(0n)
-        expect(createUserOperationMock.mock.calls[0][0]).toEqual([
-          { to: USDT_MAINNET_ADDRESS, value: 0n, data: expectedData }
-        ])
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [{ to: USDT_MAINNET_ADDRESS, value: 0n, data: expectedData }],
+          EIP1193_PROVIDER,
+          undefined,
+          { skipGasEstimation: true, nonce: 0n }
+        )
+      })
+
+      test('should approve a token without checking the allowance when the token is not USDT on mainnet', async () => {
+        const USDC_MAINNET_ADDRESS = '0xa0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
+
+        const abi = ['function approve(address spender, uint256 amount) returns (bool)']
+        const contract = new Contract(USDC_MAINNET_ADDRESS, abi)
+        const expectedData = contract.interface.encodeFunctionData('approve', [SPENDER, AMOUNT])
+
+        const { hash, fee } = await account.approve({ token: USDC_MAINNET_ADDRESS, spender: SPENDER, amount: AMOUNT })
+
+        expect(hash).toBe(DUMMY_USER_OP_HASH)
+        expect(fee).toBe(0n)
+        expect(getAllowanceMock).not.toHaveBeenCalled()
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [{ to: USDC_MAINNET_ADDRESS, value: 0n, data: expectedData }],
+          EIP1193_PROVIDER,
+          undefined,
+          { skipGasEstimation: true, nonce: 0n }
+        )
       })
     })
 
@@ -478,6 +521,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
         expect(readOnlyAccount).toBeInstanceOf(WalletAccountReadOnlyEvmErc4337)
         expect(await readOnlyAccount.getAddress()).toBe(SAFE_ADDRESS)
+        expect(createAccountAddressMock).toHaveBeenLastCalledWith([ACCOUNT.address], INIT_CODE_OVERRIDES)
       })
     })
 

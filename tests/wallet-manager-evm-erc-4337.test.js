@@ -4,13 +4,16 @@ const actualEthers = await import('ethers')
 
 const getFeeDataMock = jest.fn()
 
+const JsonRpcProviderMock = jest.fn().mockImplementation(() => ({ getFeeData: getFeeDataMock }))
+const BrowserProviderMock = jest.fn().mockImplementation(() => ({ getFeeData: getFeeDataMock }))
+
 jest.unstable_mockModule('ethers', () => ({
   ...actualEthers,
-  JsonRpcProvider: jest.fn().mockImplementation(() => ({ getFeeData: getFeeDataMock })),
-  BrowserProvider: jest.fn().mockImplementation(() => ({ getFeeData: getFeeDataMock }))
+  JsonRpcProvider: JsonRpcProviderMock,
+  BrowserProvider: BrowserProviderMock
 }))
 
-const { default: WalletManagerEvmErc4337, WalletAccountEvmErc4337 } = await import('../index.js')
+const { default: WalletManagerEvmErc4337 } = await import('../index.js')
 
 const SEED_PHRASE = 'cook voyage document eight skate token alien guide drink uncle term abuse'
 
@@ -39,6 +42,8 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
     describe('constructor', () => {
       test('should initialize a wallet with a provider url', () => {
         expect(wallet).toBeInstanceOf(WalletManagerEvmErc4337)
+        expect(JsonRpcProviderMock).toHaveBeenCalledTimes(1)
+        expect(JsonRpcProviderMock).toHaveBeenCalledWith(SPONSORED_CONFIG.provider)
       })
 
       test('should initialize a wallet with a list of provider urls', () => {
@@ -48,6 +53,8 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         })
 
         expect(failoverWallet).toBeInstanceOf(WalletManagerEvmErc4337)
+        expect(JsonRpcProviderMock).toHaveBeenCalledWith('https://primary.url/')
+        expect(JsonRpcProviderMock).toHaveBeenCalledWith('https://failover.url/')
       })
 
       test('should throw if the provider is an empty list', () => {
@@ -60,16 +67,14 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       test('should return the account at index 0 by default', async () => {
         const account = await wallet.getAccount()
 
-        expect(account).toBeInstanceOf(WalletAccountEvmErc4337)
-
+        expect(account.index).toBe(0)
         expect(account.path).toBe("m/44'/60'/0'/0/0")
       })
 
       test('should return the account at the given index', async () => {
         const account = await wallet.getAccount(3)
 
-        expect(account).toBeInstanceOf(WalletAccountEvmErc4337)
-
+        expect(account.index).toBe(3)
         expect(account.path).toBe("m/44'/60'/0'/0/3")
       })
 
@@ -90,8 +95,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       test('should return the account with the given path', async () => {
         const account = await wallet.getAccountByPath("1'/2/3")
 
-        expect(account).toBeInstanceOf(WalletAccountEvmErc4337)
-
+        expect(account.index).toBe(3)
         expect(account.path).toBe("m/44'/60'/1'/2/3")
       })
 
@@ -114,6 +118,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
         expect(feeRates.normal).toBe(11_000_000_000n)
         expect(feeRates.fast).toBe(20_000_000_000n)
+        expect(getFeeDataMock).toHaveBeenCalledTimes(1)
       })
 
       test('should use gasPrice when maxFeePerGas is not available', async () => {
@@ -128,6 +133,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
         expect(feeRates.normal).toBe(5_500_000_000n)
         expect(feeRates.fast).toBe(10_000_000_000n)
+        expect(getFeeDataMock).toHaveBeenCalledTimes(1)
       })
 
       test('should return the correct fee rates with a failover provider', async () => {
@@ -147,6 +153,9 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
         expect(feeRates.normal).toBe(11_000_000_000n)
         expect(feeRates.fast).toBe(20_000_000_000n)
+        expect(getFeeDataMock).toHaveBeenCalledTimes(1)
+        expect(JsonRpcProviderMock).toHaveBeenCalledWith('https://primary.url/')
+        expect(JsonRpcProviderMock).toHaveBeenCalledWith('https://failover.url/')
       })
     })
 

@@ -76,6 +76,13 @@ const SAFE_ADDRESS = '0x120Ac3c0B46fBAf2e8452A23BD61a2Da9B139551'
 const SPENDER = '0xa460AEbce0d3A4BecAd8ccf9D6D4861296c503Bd'
 const TOKEN_ADDRESS = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
 
+const INIT_CODE_OVERRIDES = {
+  c2Nonce: BigInt('0x69b348339eea4ed93f9d11931c3b894c8f9d8c7663a053024b11cb7eb4e5a1f6'),
+  entrypointAddress: actualAk.ENTRYPOINT_V7,
+  safe4337ModuleAddress: '0x75cf11467937ce3F2f357CE24ffc3DBF8fD5c226',
+  safeModuleSetupAddress: '0x2dd68b007B46fBe91B9A7c3EDa5A7a1063cB5b47'
+}
+
 const DUMMY_BALANCE = 1_000_000_000_000_000_000n
 const DUMMY_TOKEN_BALANCE = 1_000_000n
 const DUMMY_ALLOWANCE = 500_000n
@@ -153,7 +160,6 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       createUserOperationMock.mockResolvedValue({ ...DUMMY_USER_OP })
       createPaymasterUserOperationMock.mockResolvedValue({ userOperation: { ...DUMMY_USER_OP } })
       fetchAccountNonceMock.mockResolvedValue(0n)
-      calculateUserOperationMaxGasCostMock.mockReturnValue(1_000_000n)
 
       account = new WalletAccountReadOnlyEvmErc4337(OWNER_ADDRESS, SPONSORED_CONFIG)
     })
@@ -163,15 +169,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         const address = await account.getAddress()
 
         expect(address).toBe(SAFE_ADDRESS)
-        expect(createAccountAddressMock).toHaveBeenCalledWith(
-          [OWNER_ADDRESS],
-          {
-            c2Nonce: BigInt('0x69b348339eea4ed93f9d11931c3b894c8f9d8c7663a053024b11cb7eb4e5a1f6'),
-            entrypointAddress: actualAk.ENTRYPOINT_V7,
-            safe4337ModuleAddress: '0x75cf11467937ce3F2f357CE24ffc3DBF8fD5c226',
-            safeModuleSetupAddress: '0x2dd68b007B46fBe91B9A7c3EDa5A7a1063cB5b47'
-          }
-        )
+        expect(createAccountAddressMock).toHaveBeenCalledWith([OWNER_ADDRESS], INIT_CODE_OVERRIDES)
       })
 
       test('should throw if the safe modules version is not supported', () => {
@@ -190,10 +188,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         const address = WalletAccountReadOnlyEvmErc4337.predictSafeAddress(OWNER_ADDRESS, { safeModulesVersion: '0.3.0' })
 
         expect(address).toBe(SAFE_ADDRESS)
-        expect(createAccountAddressMock).toHaveBeenLastCalledWith(
-          [OWNER_ADDRESS],
-          expect.objectContaining({ entrypointAddress: actualAk.ENTRYPOINT_V7 })
-        )
+        expect(createAccountAddressMock).toHaveBeenLastCalledWith([OWNER_ADDRESS], INIT_CODE_OVERRIDES)
       })
 
       test('should forward the on-chain identifier to the init code overrides', () => {
@@ -204,7 +199,7 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
         expect(createAccountAddressMock).toHaveBeenLastCalledWith(
           [OWNER_ADDRESS],
-          expect.objectContaining({ onChainIdentifierParams: { project: 'my-project' } })
+          { ...INIT_CODE_OVERRIDES, onChainIdentifierParams: { project: 'my-project' } }
         )
       })
     })
@@ -296,9 +291,10 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         const { fee } = await pmAccount.quoteSendTransaction(TRANSACTION)
 
         expect(fee).toBe(600_000n)
+        expect(SafeAccountMock).toHaveBeenCalledWith(SAFE_ADDRESS, INIT_CODE_OVERRIDES)
         expect(createPaymasterUserOperationMock).toHaveBeenCalledWith(
-          expect.any(Object),
-          expect.any(Object),
+          SafeAccountMock.mock.results[0].value,
+          { ...DUMMY_USER_OP },
           PAYMASTER_TOKEN_CONFIG.bundlerUrl,
           { token: TOKEN_ADDRESS },
           { entrypoint: actualAk.ENTRYPOINT_V7 }
@@ -307,6 +303,8 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       })
 
       test('should return the fee in native coins with the tolerance applied when useNativeCoins is set', async () => {
+        calculateUserOperationMaxGasCostMock.mockReturnValue(1_000_000n)
+
         const nativeAccount = new WalletAccountReadOnlyEvmErc4337(OWNER_ADDRESS, NATIVE_COINS_CONFIG)
 
         const { fee } = await nativeAccount.quoteSendTransaction(TRANSACTION)
@@ -331,8 +329,8 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         await pmAccount.quoteSendTransaction({ ...TRANSACTION, callGasLimit: 111_111 })
 
         expect(createPaymasterUserOperationMock).toHaveBeenCalledWith(
-          expect.any(Object),
-          expect.any(Object),
+          SafeAccountMock.mock.results[0].value,
+          { ...DUMMY_USER_OP },
           PAYMASTER_TOKEN_CONFIG.bundlerUrl,
           { token: TOKEN_ADDRESS },
           { entrypoint: actualAk.ENTRYPOINT_V7, callGasLimit: 111_111n }
@@ -357,11 +355,16 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         await pmAccount.quoteSendTransaction(TRANSACTION)
 
         expect(sendRPCRequestMock).toHaveBeenCalledWith('pimlico_getUserOperationGasPrice', [])
-        expect(createUserOperationMock.mock.calls[0][3]).toEqual({
-          skipGasEstimation: true,
-          maxFeePerGas: 100_000_000_000n,
-          maxPriorityFeePerGas: 2_000_000_000n
-        })
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [{ to: SPENDER, value: 1n, data: '0x' }],
+          EIP1193_PROVIDER,
+          undefined,
+          {
+            skipGasEstimation: true,
+            maxFeePerGas: 100_000_000_000n,
+            maxPriorityFeePerGas: 2_000_000_000n
+          }
+        )
       })
 
       test('should re-validate the merged config when a per-call override is provided', async () => {
@@ -418,9 +421,12 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         const { fee } = await pmAccount.quoteTransfer(TRANSFER)
 
         expect(fee).toBe(600_000n)
-        expect(createUserOperationMock.mock.calls[0][0]).toEqual([
-          { to: TOKEN_ADDRESS, value: 0n, data: expectedData }
-        ])
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [{ to: TOKEN_ADDRESS, value: 0n, data: expectedData }],
+          EIP1193_PROVIDER,
+          undefined,
+          { skipGasEstimation: true }
+        )
       })
     })
 
