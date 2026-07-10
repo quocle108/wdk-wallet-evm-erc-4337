@@ -18,7 +18,6 @@ jest.unstable_mockModule('@tetherto/wdk-wallet-evm', () => ({
   WalletAccountReadOnlyEvm: WalletAccountReadOnlyEvmMock
 }))
 
-const createAccountAddressMock = jest.fn()
 const isDeployedMock = jest.fn()
 const createUserOperationMock = jest.fn()
 const signUserOperationWithSignersMock = jest.fn()
@@ -28,7 +27,6 @@ const getUserOperationByHashMock = jest.fn()
 const createPaymasterUserOperationMock = jest.fn()
 const sendRPCRequestMock = jest.fn()
 const fetchAccountNonceMock = jest.fn()
-const calculateUserOperationMaxGasCostMock = jest.fn()
 
 const SafeAccountMock = jest.fn().mockImplementation((address) => ({
   accountAddress: address,
@@ -36,7 +34,7 @@ const SafeAccountMock = jest.fn().mockImplementation((address) => ({
   createUserOperation: createUserOperationMock,
   signUserOperationWithSigners: signUserOperationWithSignersMock
 }))
-SafeAccountMock.createAccountAddress = createAccountAddressMock
+SafeAccountMock.createAccountAddress = actualAk.SafeAccountV0_3_0.createAccountAddress.bind(actualAk.SafeAccountV0_3_0)
 SafeAccountMock.isDeployed = isDeployedMock
 
 const BundlerMock = jest.fn().mockImplementation(() => ({
@@ -56,8 +54,7 @@ jest.unstable_mockModule('abstractionkit', () => ({
   SafeAccountV0_3_0: SafeAccountMock,
   Bundler: BundlerMock,
   Erc7677Paymaster: Erc7677PaymasterMock,
-  fetchAccountNonce: fetchAccountNonceMock,
-  calculateUserOperationMaxGasCost: calculateUserOperationMaxGasCostMock
+  fetchAccountNonce: fetchAccountNonceMock
 }))
 
 const { WalletAccountEvmErc4337, WalletAccountReadOnlyEvmErc4337, ConfigurationError } = await import('../index.js')
@@ -135,7 +132,6 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
     beforeEach(() => {
       jest.clearAllMocks()
 
-      createAccountAddressMock.mockReturnValue(SAFE_ADDRESS)
       isDeployedMock.mockResolvedValue(true)
       createUserOperationMock.mockResolvedValue({ ...DUMMY_USER_OP })
       createPaymasterUserOperationMock.mockResolvedValue({ userOperation: { ...DUMMY_USER_OP } })
@@ -167,7 +163,6 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
       test('should derive the safe address from the owner address', async () => {
         expect(await account.getAddress()).toBe(SAFE_ADDRESS)
-        expect(createAccountAddressMock).toHaveBeenCalledWith([ACCOUNT.address], INIT_CODE_OVERRIDES)
       })
 
       test('should throw if the seed phrase is invalid', () => {
@@ -521,7 +516,6 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
 
         expect(readOnlyAccount).toBeInstanceOf(WalletAccountReadOnlyEvmErc4337)
         expect(await readOnlyAccount.getAddress()).toBe(SAFE_ADDRESS)
-        expect(createAccountAddressMock).toHaveBeenLastCalledWith([ACCOUNT.address], INIT_CODE_OVERRIDES)
       })
     })
 

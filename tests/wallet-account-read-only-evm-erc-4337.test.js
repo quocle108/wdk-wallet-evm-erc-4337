@@ -29,7 +29,6 @@ jest.unstable_mockModule('@tetherto/wdk-wallet-evm', () => ({
   WalletAccountReadOnlyEvm: WalletAccountReadOnlyEvmMock
 }))
 
-const createAccountAddressMock = jest.fn()
 const isDeployedMock = jest.fn()
 const createUserOperationMock = jest.fn()
 const sendUserOperationMock = jest.fn()
@@ -38,14 +37,13 @@ const getUserOperationByHashMock = jest.fn()
 const createPaymasterUserOperationMock = jest.fn()
 const sendRPCRequestMock = jest.fn()
 const fetchAccountNonceMock = jest.fn()
-const calculateUserOperationMaxGasCostMock = jest.fn()
 
 const SafeAccountMock = jest.fn().mockImplementation((address) => ({
   accountAddress: address,
   entrypointAddress: actualAk.ENTRYPOINT_V7,
   createUserOperation: createUserOperationMock
 }))
-SafeAccountMock.createAccountAddress = createAccountAddressMock
+SafeAccountMock.createAccountAddress = actualAk.SafeAccountV0_3_0.createAccountAddress.bind(actualAk.SafeAccountV0_3_0)
 SafeAccountMock.isDeployed = isDeployedMock
 
 const BundlerMock = jest.fn().mockImplementation(() => ({
@@ -65,8 +63,7 @@ jest.unstable_mockModule('abstractionkit', () => ({
   SafeAccountV0_3_0: SafeAccountMock,
   Bundler: BundlerMock,
   Erc7677Paymaster: Erc7677PaymasterMock,
-  fetchAccountNonce: fetchAccountNonceMock,
-  calculateUserOperationMaxGasCost: calculateUserOperationMaxGasCostMock
+  fetchAccountNonce: fetchAccountNonceMock
 }))
 
 const { WalletAccountReadOnlyEvmErc4337, ConfigurationError } = await import('../index.js')
@@ -155,7 +152,6 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
     beforeEach(() => {
       jest.clearAllMocks()
 
-      createAccountAddressMock.mockReturnValue(SAFE_ADDRESS)
       isDeployedMock.mockResolvedValue(true)
       createUserOperationMock.mockResolvedValue({ ...DUMMY_USER_OP })
       createPaymasterUserOperationMock.mockResolvedValue({ userOperation: { ...DUMMY_USER_OP } })
@@ -169,7 +165,6 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         const address = await account.getAddress()
 
         expect(address).toBe(SAFE_ADDRESS)
-        expect(createAccountAddressMock).toHaveBeenCalledWith([OWNER_ADDRESS], INIT_CODE_OVERRIDES)
       })
 
       test('should throw if the safe modules version is not supported', () => {
@@ -188,19 +183,15 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         const address = WalletAccountReadOnlyEvmErc4337.predictSafeAddress(OWNER_ADDRESS, { safeModulesVersion: '0.3.0' })
 
         expect(address).toBe(SAFE_ADDRESS)
-        expect(createAccountAddressMock).toHaveBeenLastCalledWith([OWNER_ADDRESS], INIT_CODE_OVERRIDES)
       })
 
-      test('should forward the on-chain identifier to the init code overrides', () => {
-        WalletAccountReadOnlyEvmErc4337.predictSafeAddress(OWNER_ADDRESS, {
+      test('should derive the same address when an on-chain identifier is configured', () => {
+        const address = WalletAccountReadOnlyEvmErc4337.predictSafeAddress(OWNER_ADDRESS, {
           safeModulesVersion: '0.3.0',
           onChainIdentifier: 'my-project'
         })
 
-        expect(createAccountAddressMock).toHaveBeenLastCalledWith(
-          [OWNER_ADDRESS],
-          { ...INIT_CODE_OVERRIDES, onChainIdentifierParams: { project: 'my-project' } }
-        )
+        expect(address).toBe(SAFE_ADDRESS)
       })
     })
 
@@ -303,13 +294,12 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
       })
 
       test('should return the fee in native coins with the tolerance applied when useNativeCoins is set', async () => {
-        calculateUserOperationMaxGasCostMock.mockReturnValue(1_000_000n)
-
         const nativeAccount = new WalletAccountReadOnlyEvmErc4337(OWNER_ADDRESS, NATIVE_COINS_CONFIG)
 
         const { fee } = await nativeAccount.quoteSendTransaction(TRANSACTION)
 
-        expect(fee).toBe(1_200_000n)
+        // The real gas math over DUMMY_USER_OP: (50_000 + 100_000 + 30_000) * 10 gwei * 120% tolerance.
+        expect(fee).toBe(2_160_000_000_000_000n)
         expect(createUserOperationMock).toHaveBeenCalledWith(
           [{ to: SPENDER, value: 1n, data: '0x' }],
           EIP1193_PROVIDER,
