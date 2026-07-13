@@ -261,8 +261,8 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
       this._validateConfig(mergedConfig)
     }
 
-    if (WalletAccountReadOnlyEvmErc4337._isSignedUserOperation(tx)) {
-      return { fee: mergedConfig.isSponsored ? 0n : WalletAccountReadOnlyEvmErc4337._getSignedUserOperationFee(tx) }
+    if (WalletAccountEvmErc4337._isSignedUserOperation(tx)) {
+      return { fee: mergedConfig.isSponsored ? 0n : WalletAccountEvmErc4337._getSignedUserOperationFee(tx) }
     }
 
     const txKey = WalletAccountEvmErc4337._getTxKey(tx)
@@ -311,8 +311,8 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
       this._validateConfig(mergedConfig)
     }
 
-    if (WalletAccountReadOnlyEvmErc4337._isSignedUserOperation(tx)) {
-      const fee = mergedConfig.isSponsored ? 0n : WalletAccountReadOnlyEvmErc4337._getSignedUserOperationFee(tx)
+    if (WalletAccountEvmErc4337._isSignedUserOperation(tx)) {
+      const fee = mergedConfig.isSponsored ? 0n : WalletAccountEvmErc4337._getSignedUserOperationFee(tx)
 
       const hash = await this._broadcastSignedUserOperation(tx)
 
@@ -573,5 +573,33 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
       }
       throw err
     }
+  }
+
+  /**
+   * Determines whether a value is an already-signed UserOperation (as returned by `signTransaction`)
+   * rather than an unsigned {@link EvmErc4337Transaction} (or array of them).
+   *
+   * @private
+   * @param {EvmErc4337Transaction | EvmErc4337Transaction[] | UserOperationV7} tx - The value to inspect.
+   * @returns {boolean} True if the value is a signed UserOperation.
+   */
+  static _isSignedUserOperation (tx) {
+    return !!tx.signature
+  }
+
+  /**
+   * Computes the fee (with tolerance buffer) for an already-signed UserOperation, reusing the
+   * same native gas-cost formula as the unsigned native path.
+   *
+   * In token-paymaster mode this reflects the native gas ceiling rather than the token amount:
+   * the token cost is set by the paymaster at sign time and cannot be reproduced from the signed
+   * UserOperation.
+   *
+   * @private
+   * @param {UserOperationV7} userOp - The signed UserOperation.
+   * @returns {bigint} The fee, in the smart account's native coin (wei).
+   */
+  static _getSignedUserOperationFee (userOp) {
+    return BigInt(calculateUserOperationMaxGasCost(userOp)) * FEE_TOLERANCE_COEFFICIENT / 100n
   }
 }

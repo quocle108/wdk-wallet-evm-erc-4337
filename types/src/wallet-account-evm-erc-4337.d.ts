@@ -153,6 +153,8 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     /** @private */
     private _sendUserOperation;
     private _broadcastSignedUserOperation;
+    private static _isSignedUserOperation;
+    private static _getSignedUserOperationFee;
 }
 export type Eip1193Provider = import("ethers").Eip1193Provider;
 export type IWalletAccount<TSignedTransaction> = import("@tetherto/wdk-wallet").IWalletAccount<TSignedTransaction>;

@@ -242,8 +242,6 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
      * @throws {Error} If the token paymaster reports AA50 (account does not hold the paymaster token).
      */
     protected _getUserOperationGasCost(txs: EvmErc4337Transaction[], config: Omit<EvmErc4337WalletConfig, "transferMaxFee" | "transactionMaxFee">): Promise<BuiltUserOperation & Omit<TransactionResult, "hash">>;
-    private static _isSignedUserOperation;
-    private static _getSignedUserOperationFee;
 }
 export type Eip1193Provider = import("ethers").Eip1193Provider;
 export type TransactionResult = import("@tetherto/wdk-wallet-evm").TransactionResult;
