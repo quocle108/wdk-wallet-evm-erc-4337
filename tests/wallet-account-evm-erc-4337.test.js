@@ -372,6 +372,35 @@ describe('@tetherto/wdk-wallet-evm-erc-4337', () => {
         )
       })
 
+      test('should allocate sequential nonces to concurrent transactions', async () => {
+        fetchAccountNonceMock.mockResolvedValue(5n)
+        signUserOperationWithSignersMock.mockResolvedValue(DUMMY_OP_SIGNATURE)
+        sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
+
+        const [resultA, resultB] = await Promise.all([
+          account.sendTransaction(TRANSACTION),
+          account.sendTransaction({ to: RECIPIENT, value: 2, data: '0x' })
+        ])
+
+        expect(resultA.hash).toBe(DUMMY_USER_OP_HASH)
+        expect(resultA.fee).toBe(0n)
+        expect(resultB.hash).toBe(DUMMY_USER_OP_HASH)
+        expect(resultB.fee).toBe(0n)
+        expect(createUserOperationMock).toHaveBeenCalledTimes(2)
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [{ to: ACCOUNT.address, value: 1n, data: '0x' }],
+          EIP1193_PROVIDER,
+          undefined,
+          { skipGasEstimation: true, nonce: 5n }
+        )
+        expect(createUserOperationMock).toHaveBeenCalledWith(
+          [{ to: RECIPIENT, value: 2n, data: '0x' }],
+          EIP1193_PROVIDER,
+          undefined,
+          { skipGasEstimation: true, nonce: 6n }
+        )
+      })
+
       test('should honor only the first transaction gas overrides in a batch', async () => {
         sendUserOperationMock.mockResolvedValue(DUMMY_USER_OP_HASH)
 
