@@ -722,12 +722,7 @@ export default class WalletAccountReadOnlyEvmErc4337 extends WalletAccountReadOn
    * @returns {boolean} True if the value is a signed UserOperation.
    */
   static _isSignedUserOperation (tx) {
-    return tx !== null &&
-      typeof tx === 'object' &&
-      !Array.isArray(tx) &&
-      tx.sender !== undefined &&
-      tx.callData !== undefined &&
-      tx.signature !== undefined
+    return !!tx.signature
   }
 
   /**
