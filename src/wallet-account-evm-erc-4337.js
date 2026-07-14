@@ -74,7 +74,7 @@ const withTimeout = (promise, ms) => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
-/** @implements {IWalletAccount} */
+/** @implements {IWalletAccount<UserOperationV7>} */
 export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc4337 {
   /**
    * Creates a new evm [erc-4337](https://www.erc4337.io/docs) wallet account.
@@ -246,7 +246,11 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    * In a batched call (`tx` passed as `[tx1, tx2, ...]`), only the gas overrides on `tx1` are
    * honored — a UserOperation has a single set of gas fields regardless of how many calls it batches.
    *
-   * @param {EvmErc4337Transaction | EvmErc4337Transaction[]} tx - The transaction, or an array of multiple transactions to send in batch.
+   * An already-signed UserOperation (as returned by `signTransaction`) may also be passed; in that case
+   * its fee is read from its own gas fields (in token-paymaster mode this reflects the native gas ceiling,
+   * not the token amount).
+   *
+   * @param {EvmErc4337Transaction | EvmErc4337Transaction[] | UserOperationV7} tx - The transaction, an array of multiple transactions to send in batch, or an already-signed UserOperation.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
    * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
    */
@@ -255,6 +259,10 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     if (config) {
       this._validateConfig(mergedConfig)
+    }
+
+    if (WalletAccountEvmErc4337._isSignedUserOperation(tx)) {
+      return { fee: mergedConfig.isSponsored ? 0n : WalletAccountEvmErc4337._getSignedUserOperationFee(tx) }
     }
 
     const txKey = WalletAccountEvmErc4337._getTxKey(tx)
@@ -287,7 +295,11 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
    *
    * If the transaction is not sponsored, it also estimates the transaction's costs and checks them against the transaction max. fee option.
    *
-   * @param {EvmErc4337Transaction | EvmErc4337Transaction[]} tx -  The transaction, or an array of multiple transactions to send in batch.
+   * An already-signed UserOperation (as returned by `signTransaction`) may also be passed; in that case it is
+   * broadcast directly to the bundler, reusing the nonce baked in at sign time. The max-fee check is skipped
+   * (it was already enforced during `signTransaction`).
+   *
+   * @param {EvmErc4337Transaction | EvmErc4337Transaction[] | UserOperationV7} tx -  The transaction, an array of multiple transactions to send in batch, or an already-signed UserOperation.
    * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
    * @returns {Promise<TransactionResult>} The transaction's result.
    * @throws {Error} If the transaction is not sponsored, and the transaction's cost surpasses the transaction max. fee option.
@@ -297,6 +309,14 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
 
     if (config) {
       this._validateConfig(mergedConfig)
+    }
+
+    if (WalletAccountEvmErc4337._isSignedUserOperation(tx)) {
+      const fee = mergedConfig.isSponsored ? 0n : WalletAccountEvmErc4337._getSignedUserOperationFee(tx)
+
+      const hash = await this._broadcastSignedUserOperation(tx)
+
+      return { hash, fee }
     }
 
     const txs = [tx].flat()
@@ -535,5 +555,51 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
       }
       throw err
     }
+  }
+
+  /**
+   * Broadcasts an already-signed UserOperation directly to the bundler.
+   *
+   * @private
+   * @param {UserOperationV7} userOp - The signed UserOperation.
+   * @returns {Promise<string>} The user operation hash.
+   */
+  async _broadcastSignedUserOperation (userOp) {
+    try {
+      return await this._getBundler().sendUserOperation(userOp, ENTRYPOINT_V7)
+    } catch (err) {
+      if (err instanceof AbstractionKitError && err.message.includes('AA50')) {
+        throw new Error('Not enough funds on the safe account to repay the paymaster.')
+      }
+      throw err
+    }
+  }
+
+  /**
+   * Determines whether a value is an already-signed UserOperation (as returned by `signTransaction`)
+   * rather than an unsigned {@link EvmErc4337Transaction} (or array of them).
+   *
+   * @private
+   * @param {EvmErc4337Transaction | EvmErc4337Transaction[] | UserOperationV7} tx - The value to inspect.
+   * @returns {boolean} True if the value is a signed UserOperation.
+   */
+  static _isSignedUserOperation (tx) {
+    return !!tx.signature
+  }
+
+  /**
+   * Computes the fee (with tolerance buffer) for an already-signed UserOperation, reusing the
+   * same native gas-cost formula as the unsigned native path.
+   *
+   * In token-paymaster mode this reflects the native gas ceiling rather than the token amount:
+   * the token cost is set by the paymaster at sign time and cannot be reproduced from the signed
+   * UserOperation.
+   *
+   * @private
+   * @param {UserOperationV7} userOp - The signed UserOperation.
+   * @returns {bigint} The fee, in the smart account's native coin (wei).
+   */
+  static _getSignedUserOperationFee (userOp) {
+    return BigInt(calculateUserOperationMaxGasCost(userOp)) * FEE_TOLERANCE_COEFFICIENT / 100n
   }
 }

@@ -1,5 +1,5 @@
 /** @implements {IWalletAccount} */
-export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc4337 implements IWalletAccount {
+export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc4337 implements IWalletAccount<UserOperationV7> {
     /**
      * Creates a new evm [erc-4337](https://www.erc4337.io/docs) wallet account.
      *
@@ -93,7 +93,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
      * @param {Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>} [config] - If set, overrides the given configuration options.
      * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
      */
-    quoteSendTransaction(tx: EvmErc4337Transaction | EvmErc4337Transaction[], config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<Omit<TransactionResult, "hash">>;
+    quoteSendTransaction(tx: EvmErc4337Transaction | EvmErc4337Transaction[] | UserOperationV7, config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<Omit<TransactionResult, "hash">>;
     /**
      * Sends a transaction.
      *
@@ -107,7 +107,7 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
      * @returns {Promise<TransactionResult>} The transaction's result.
      * @throws {Error} If the transaction is not sponsored, and the transaction's cost surpasses the transaction max. fee option.
      */
-    sendTransaction(tx: EvmErc4337Transaction | EvmErc4337Transaction[], config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<TransactionResult>;
+    sendTransaction(tx: EvmErc4337Transaction | EvmErc4337Transaction[] | UserOperationV7, config?: Partial<EvmErc4337WalletPaymasterTokenConfig | EvmErc4337WalletSponsorshipPolicyConfig | EvmErc4337WalletNativeCoinsConfig>): Promise<TransactionResult>;
     /**
      * Transfers a token to another address.
      *
@@ -152,9 +152,12 @@ export default class WalletAccountEvmErc4337 extends WalletAccountReadOnlyEvmErc
     private _signUserOperation;
     /** @private */
     private _sendUserOperation;
+    private _broadcastSignedUserOperation;
+    private static _isSignedUserOperation;
+    private static _getSignedUserOperationFee;
 }
 export type Eip1193Provider = import("ethers").Eip1193Provider;
-export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
+export type IWalletAccount<TSignedTransaction> = import("@tetherto/wdk-wallet").IWalletAccount<TSignedTransaction>;
 export type KeyPair = import("@tetherto/wdk-wallet-evm").KeyPair;
 export type EvmErc4337Transaction = import("./wallet-account-read-only-evm-erc-4337.js").EvmErc4337Transaction;
 export type EvmErc4337GasOverrides = import("./wallet-account-read-only-evm-erc-4337.js").EvmErc4337GasOverrides;
