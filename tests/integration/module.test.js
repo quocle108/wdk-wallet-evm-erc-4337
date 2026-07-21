@@ -781,7 +781,32 @@ describe('@wdk/wallet-evm-erc-4337', () => {
     const balance1After = await ethersProvider.getBalance(ACCOUNT1.safeAddress)
     expect(balance1After).toBe(balance1Before + ethers.parseEther('1'))
   }, TIMEOUT)
-  
+
+  test('should quote and send an already-signed user operation directly', async () => {
+    const account0 = await wallet.getAccountByPath("0'/0/0")
+    const account1 = await wallet.getAccountByPath("0'/0/1")
+
+    const balance1Before = await ethersProvider.getBalance(ACCOUNT1.safeAddress)
+
+    const TRANSACTION = {
+      to: ACCOUNT1.safeAddress,
+      value: ethers.parseEther('1')
+    }
+
+    const signedUserOp = await account0.signTransaction(TRANSACTION)
+
+    const { fee: quotedFee } = await account0.quoteSendTransaction(signedUserOp)
+    expect(quotedFee).toBeGreaterThan(0n)
+
+    const { hash, fee } = await account0.sendTransaction(signedUserOp)
+    expect(fee).toBe(quotedFee)
+
+    await waitForTx(hash, account1)
+
+    const balance1After = await ethersProvider.getBalance(ACCOUNT1.safeAddress)
+    expect(balance1After).toBe(balance1Before + ethers.parseEther('1'))
+  }, TIMEOUT)
+
   test('should reuse the first quote and re-quote the second once the first has mined', async () => {
     const account0 = await wallet.getAccountByPath("0'/0/0")
     account0._quoteCache.clear()
